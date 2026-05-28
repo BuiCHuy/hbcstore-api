@@ -5,6 +5,9 @@ import com.hbcstore.hbcstore_api.catalog.dto.ProductResponse;
 import com.hbcstore.hbcstore_api.review.ProductReview;
 import com.hbcstore.hbcstore_api.review.ProductReviewRepository;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +41,20 @@ public class ProductService {
         return products.stream()
                 .map(this::toProductResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getPage(String search, Pageable pageable) {
+        Page<Product> products;
+        if (search == null || search.isBlank()) {
+            products = productRepository.findAll(pageable);
+        } else {
+            products = productRepository.search(search.trim(), pageable);
+        }
+        List<ProductResponse> content = products.getContent().stream()
+                .map(this::toProductResponse)
+                .toList();
+        return new PageImpl<>(content, pageable, products.getTotalElements());
     }
 
     @Transactional(readOnly = true)

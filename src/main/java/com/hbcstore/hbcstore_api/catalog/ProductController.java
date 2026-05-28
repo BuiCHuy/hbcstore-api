@@ -4,6 +4,8 @@ import com.hbcstore.hbcstore_api.catalog.dto.ProductRequest;
 import com.hbcstore.hbcstore_api.catalog.dto.ProductResponse;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,7 +28,17 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponse> getAll(@RequestParam(required = false) String search) {
+    public Object getAll(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        if (page != null || size != null) {
+            int resolvedPage = page == null || page < 0 ? 0 : page;
+            int resolvedSize = size == null || size <= 0 ? 20 : Math.min(size, 100);
+            Page<ProductResponse> paged = productService.getPage(search, PageRequest.of(resolvedPage, resolvedSize));
+            return paged;
+        }
         return productService.getAll(search);
     }
 

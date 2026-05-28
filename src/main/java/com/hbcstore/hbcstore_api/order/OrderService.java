@@ -15,6 +15,9 @@ import com.hbcstore.hbcstore_api.user.User;
 import com.hbcstore.hbcstore_api.user.UserRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class OrderService {
     private static final long BANK_TRANSFER_PAYMENT_EXPIRE_MINUTES = 15L;
+    private static final DateTimeFormatter UTC_ISO_FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
     private final StoreOrderRepository orderRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final ProductRepository productRepository;
@@ -309,7 +313,7 @@ public class OrderService {
                 order.getStatus(),
                 order.getPaymentMethod(),
                 order.getPaymentStatus(),
-                order.getPaymentExpiredAt(),
+                toUtcIsoString(order.getPaymentExpiredAt()),
                 order.getSubtotalAmount(),
                 order.getShippingFee(),
                 order.getDiscountAmount(),
@@ -317,5 +321,14 @@ public class OrderService {
                 itemCount,
                 items
         );
+    }
+
+    private String toUtcIsoString(LocalDateTime dateTime) {
+        if (dateTime == null) return null;
+        return dateTime
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .atOffset(ZoneOffset.UTC)
+                .format(UTC_ISO_FORMATTER);
     }
 }

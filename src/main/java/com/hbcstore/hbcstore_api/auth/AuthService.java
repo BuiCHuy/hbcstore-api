@@ -4,6 +4,7 @@ import com.hbcstore.hbcstore_api.auth.dto.AuthResponse;
 import com.hbcstore.hbcstore_api.auth.dto.GoogleLoginRequest;
 import com.hbcstore.hbcstore_api.auth.dto.LoginRequest;
 import com.hbcstore.hbcstore_api.auth.dto.RegisterRequest;
+import com.hbcstore.hbcstore_api.auth.dto.RegisterResponse;
 import com.hbcstore.hbcstore_api.auth.dto.UserResponse;
 import com.hbcstore.hbcstore_api.user.User;
 import com.hbcstore.hbcstore_api.user.UserRepository;
@@ -18,23 +19,35 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            GoogleTokenVerifier googleTokenVerifier
+            GoogleTokenVerifier googleTokenVerifier,
+            EmailVerificationService emailVerificationService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.googleTokenVerifier = googleTokenVerifier;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public RegisterResponse register(RegisterRequest request) {
         String email = normalizeEmail(request.email());
-        if (userRepository.existsByEmail(email)) {
+        User existingUser = userRepository.findByEmail(email).orElse(null);
+        if (existingUser != null) {
+            if (existingUser.getProvider() == User.AuthProvider.LOCAL
+                    && existingUser.getStatus() == User.UserStatus.INACTIVE) {
+                emailVerificationService.issueAndSend(existingUser);
+                return new RegisterResponse(
+                        "Email này đã đăng ký nhưng chưa xác thực. Chúng tôi đã gửi lại link mới (hiệu lực 30 phút).",
+                        true
+                );
+            }
             throw new IllegalArgumentException("Email already exists");
         }
 
@@ -45,12 +58,16 @@ public class AuthService {
         user.setPhoneNumber(blankToNull(request.phoneNumber()));
         user.setAddress(blankToNull(request.address()));
         user.setRole(User.Role.CUSTOMER);
-        user.setStatus(User.UserStatus.ACTIVE);
+        user.setStatus(User.UserStatus.INACTIVE);
         user.setProvider(User.AuthProvider.LOCAL);
         user.setProviderId(null);
 
         User savedUser = userRepository.save(user);
-        return toAuthResponse(savedUser);
+        emailVerificationService.issueAndSend(savedUser);
+        return new RegisterResponse(
+                "Đăng ký thành công. Vui lòng kiểm tra email để xác thực trong 30 phút, quá hạn tài khoản sẽ bị xóa.",
+                true
+        );
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +81,9 @@ public class AuthService {
 
         if (user.getStatus() == User.UserStatus.BANNED) {
             throw new IllegalArgumentException("Account is banned");
+        }
+        if (user.getStatus() == User.UserStatus.INACTIVE && user.getProvider() == User.AuthProvider.LOCAL) {
+            throw new IllegalArgumentException("Please verify your email before login");
         }
 
         return toAuthResponse(user);
@@ -108,5 +128,13 @@ public class AuthService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    public void verifyEmail(String token) {
+        emailVerificationService.verifyToken(token);
+    }
+
+    public void resendVerification(String email) {
+        emailVerificationService.resend(email);
     }
 }

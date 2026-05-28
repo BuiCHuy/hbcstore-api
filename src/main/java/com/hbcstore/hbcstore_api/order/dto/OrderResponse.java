@@ -17,7 +17,7 @@ public record OrderResponse(
         StoreOrder.OrderStatus status,
         StoreOrder.PaymentMethod paymentMethod,
         StoreOrder.PaymentStatus paymentStatus,
-        LocalDateTime paymentExpiredAt,
+        String paymentExpiredAt,
         BigDecimal subtotalAmount,
         BigDecimal shippingFee,
         BigDecimal discountAmount,
