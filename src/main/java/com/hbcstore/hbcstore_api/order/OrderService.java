@@ -79,12 +79,12 @@ public class OrderService {
     public OrderResponse create(CreateOrderRequest request, String userEmail) {
         StoreOrder order = new StoreOrder();
         if (userEmail != null && !userEmail.isBlank()) {
-            userRepository.findByEmail(userEmail).ifPresent(user -> {
-                if (user.getRole() == User.Role.ADMIN) {
-                    throw new IllegalArgumentException("Admin account cannot place orders");
-                }
-                order.setUser(user);
-            });
+            User user = userRepository.findByEmailIgnoreCase(userEmail)
+                    .orElseThrow(() -> new IllegalArgumentException("Authenticated user not found"));
+            if (user.getRole() == User.Role.ADMIN) {
+                throw new IllegalArgumentException("Admin account cannot place orders");
+            }
+            order.setUser(user);
         }
         order.setGuestName(request.customerName());
         order.setGuestPhone(request.customerPhone());
