@@ -35,6 +35,22 @@ public class CouponService {
     }
 
     @Transactional
+    public CouponResponse update(Long id, CouponRequest request) {
+        Coupon coupon = couponRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Coupon not found: " + id));
+
+        couponRepository.findByCodeIgnoreCase(request.code().trim())
+                .ifPresent(existing -> {
+                    if (!existing.getId().equals(id)) {
+                        throw new IllegalArgumentException("Coupon code already exists");
+                    }
+                });
+
+        applyRequest(coupon, request);
+        return CouponResponse.from(couponRepository.save(coupon));
+    }
+
+    @Transactional
     public void delete(Long id) {
         Coupon coupon = couponRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Coupon not found: " + id));

@@ -94,6 +94,7 @@ public class OrderService {
         if (request.couponId() != null) {
             var coupon = couponRepository.findById(request.couponId())
                     .orElseThrow(() -> new IllegalArgumentException("Coupon not found"));
+            validateCouponPerUserLimit(order, coupon);
             validateAndConsumeCoupon(coupon);
             order.setCoupon(coupon);
         }
@@ -135,6 +136,21 @@ public class OrderService {
             throw new IllegalArgumentException("Coupon usage limit reached");
         }
         coupon.setUsedCount(usedCount + 1);
+    }
+
+    private void validateCouponPerUserLimit(StoreOrder order, Coupon coupon) {
+        if (order.getUser() == null || order.getUser().getId() == null || coupon == null || coupon.getId() == null) {
+            return;
+        }
+
+        boolean alreadyUsed = orderRepository.existsCouponUsageByUserExcludingCancelled(
+                order.getUser().getId(),
+                coupon.getId(),
+                StoreOrder.OrderStatus.CANCELLED
+        );
+        if (alreadyUsed) {
+            throw new IllegalArgumentException("Each user can only use this coupon once");
+        }
     }
 
     @Transactional
