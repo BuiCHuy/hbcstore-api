@@ -8,6 +8,8 @@ import com.hbcstore.hbcstore_api.catalog.Category;
 import com.hbcstore.hbcstore_api.catalog.CategoryRepository;
 import com.hbcstore.hbcstore_api.catalog.Product;
 import com.hbcstore.hbcstore_api.catalog.ProductService;
+import com.hbcstore.hbcstore_api.catalog.Subcategory;
+import com.hbcstore.hbcstore_api.catalog.SubcategoryRepository;
 import com.hbcstore.hbcstore_api.catalog.dto.ProductResponse;
 import java.math.BigDecimal;
 import java.text.Normalizer;
@@ -136,18 +138,21 @@ public class ChatService {
     private final ProductService productService;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
+    private final SubcategoryRepository subcategoryRepository;
     private final Map<String, SessionContext> sessionMemory = new ConcurrentHashMap<>();
 
     public ChatService(
             GeminiSearchService geminiSearchService,
             ProductService productService,
             BrandRepository brandRepository,
-            CategoryRepository categoryRepository
+            CategoryRepository categoryRepository,
+            SubcategoryRepository subcategoryRepository
     ) {
         this.geminiSearchService = geminiSearchService;
         this.productService = productService;
         this.brandRepository = brandRepository;
         this.categoryRepository = categoryRepository;
+        this.subcategoryRepository = subcategoryRepository;
     }
 
     public ChatResponse chat(String message, String sessionId) {
@@ -206,7 +211,7 @@ public class ChatService {
                         item.name(),
                         item.thumbnailUrl(),
                         item.brandName(),
-                        item.categoryName(),
+                        formatCatalogLabel(item),
                         item.price() == null ? 0 : item.price().doubleValue()
                 ))
                 .toList();
@@ -218,7 +223,7 @@ public class ChatService {
                         item.name(),
                         item.thumbnailUrl(),
                         item.brandName(),
-                        item.categoryName(),
+                        formatCatalogLabel(item),
                         item.price() == null ? 0 : item.price().doubleValue()
                 ))
                 .toList();
@@ -234,6 +239,7 @@ public class ChatService {
                 intent.maxPrice(),
                 intent.brand(),
                 intent.category(),
+                intent.subcategory(),
                 suggestedProducts.size()
         );
 
@@ -283,13 +289,17 @@ public class ChatService {
 
         String brand = detectBrand(raw);
         String category = detectCategory(raw);
+        String subcategory = detectSubcategory(raw);
+        if (subcategory != null && category == null) {
+            category = detectCategoryFromSubcategory(subcategory);
+        }
         String theme = detectTheme(raw);
         boolean inStockOnly = raw.contains("còn hàng") || raw.contains("co hang");
         boolean cheap = raw.contains("giá rẻ") || raw.contains("gia re") || raw.contains("bình dân");
         boolean premium = raw.contains("cao cấp") || raw.contains("premium") || raw.contains("đắt");
         String sort = cheap ? "priceAsc" : (premium ? "priceDesc" : null);
 
-        return new SearchIntent(keyword, brand, category, minPrice, maxPrice, inStockOnly, sort, theme);
+        return new SearchIntent(keyword, brand, category, subcategory, minPrice, maxPrice, inStockOnly, sort, theme);
     }
 
     private SearchIntent mergeIntent(SearchIntent current, SessionContext previous) {
@@ -297,18 +307,20 @@ public class ChatService {
         String keyword = choose(current.keyword(), previous.intent.keyword());
         String brand = choose(current.brand(), previous.intent.brand());
         String category = choose(current.category(), previous.intent.category());
+        String subcategory = choose(current.subcategory(), previous.intent.subcategory());
         BigDecimal minPrice = current.minPrice() != null ? current.minPrice() : previous.intent.minPrice();
         BigDecimal maxPrice = current.maxPrice() != null ? current.maxPrice() : previous.intent.maxPrice();
         boolean inStock = current.inStockOnly() || previous.intent.inStockOnly();
         String sort = current.sort() != null ? current.sort() : previous.intent.sort();
         String theme = current.theme() != null ? current.theme() : previous.intent.theme();
-        return new SearchIntent(keyword, brand, category, minPrice, maxPrice, inStock, sort, theme);
+        return new SearchIntent(keyword, brand, category, subcategory, minPrice, maxPrice, inStock, sort, theme);
     }
 
     private List<ProductResponse> applyFilters(List<ProductResponse> products, SearchIntent intent) {
         List<ProductResponse> filtered = products.stream()
                 .filter(p -> intent.brand() == null || normalize(p.brandName()).contains(intent.brand()))
                 .filter(p -> intent.category() == null || normalize(p.categoryName()).contains(intent.category()))
+                .filter(p -> intent.subcategory() == null || normalize(p.subcategoryName()).contains(intent.subcategory()))
                 .filter(p -> intent.minPrice() == null || p.price().compareTo(intent.minPrice()) >= 0)
                 .filter(p -> intent.maxPrice() == null || p.price().compareTo(intent.maxPrice()) <= 0)
                 .filter(p -> !intent.inStockOnly() || (p.stockQuantity() != null && p.stockQuantity() > 0))
@@ -322,6 +334,7 @@ public class ChatService {
         return products.stream()
                 .filter(p -> intent.brand() == null || normalize(p.brandName()).contains(intent.brand()))
                 .filter(p -> intent.category() == null || normalize(p.categoryName()).contains(intent.category()))
+                .filter(p -> intent.subcategory() == null || normalize(p.subcategoryName()).contains(intent.subcategory()))
                 .filter(p -> intent.minPrice() == null || p.price().compareTo(intent.minPrice()) >= 0)
                 .filter(p -> intent.maxPrice() == null || p.price().compareTo(intent.maxPrice()) <= 0)
                 .filter(p -> !intent.inStockOnly() || (p.stockQuantity() != null && p.stockQuantity() > 0))
@@ -366,6 +379,7 @@ public class ChatService {
                 (product.name() == null ? "" : product.name()) + " "
                         + (product.description() == null ? "" : product.description()) + " "
                         + (product.categoryName() == null ? "" : product.categoryName()) + " "
+                        + (product.subcategoryName() == null ? "" : product.subcategoryName()) + " "
                         + (product.brandName() == null ? "" : product.brandName())
         );
 
@@ -382,6 +396,9 @@ public class ChatService {
         }
         if (intent.category() != null && normalize(product.categoryName()).contains(intent.category())) {
             score += 3;
+        }
+        if (intent.subcategory() != null && normalize(product.subcategoryName()).contains(intent.subcategory())) {
+            score += 5;
         }
         if (intent.minPrice() != null && product.price().compareTo(intent.minPrice()) >= 0) {
             score += 1;
@@ -422,6 +439,37 @@ public class ChatService {
             String name = normalize(category.getName());
             if (!name.isBlank() && raw.contains(name)) {
                 return name;
+            }
+        }
+        return null;
+    }
+
+    private String detectSubcategory(String raw) {
+        List<Subcategory> subcategories = subcategoryRepository.findAll();
+        String bestMatch = null;
+        int bestLength = -1;
+        for (Subcategory subcategory : subcategories) {
+            if (subcategory.getStatus() != Subcategory.Status.ACTIVE) {
+                continue;
+            }
+            String name = normalize(subcategory.getName());
+            if (!name.isBlank() && raw.contains(name) && name.length() > bestLength) {
+                bestMatch = name;
+                bestLength = name.length();
+            }
+        }
+        return bestMatch;
+    }
+
+    private String detectCategoryFromSubcategory(String normalizedSubcategory) {
+        List<Subcategory> subcategories = subcategoryRepository.findAll();
+        for (Subcategory subcategory : subcategories) {
+            if (subcategory.getStatus() != Subcategory.Status.ACTIVE) {
+                continue;
+            }
+            String name = normalize(subcategory.getName());
+            if (name.equals(normalizedSubcategory) && subcategory.getCategory() != null) {
+                return normalize(subcategory.getCategory().getName());
             }
         }
         return null;
@@ -636,6 +684,7 @@ public class ChatService {
                 Bộ lọc:
                 - brand: %s
                 - category: %s
+                - subcategory: %s
                 - minPrice: %s
                 - maxPrice: %s
                 - inStockOnly: %s
@@ -646,6 +695,7 @@ public class ChatService {
                 - hộp ngẫu nhiên
                 - lego
                 - dụng cụ
+                Nếu có danh mục con thì ưu tiên bám sát danh mục con khi tư vấn.
                 Danh sách sản phẩm tìm được:
                 %s
                 """.formatted(
@@ -653,6 +703,7 @@ public class ChatService {
                 interpretedQuery,
                 intent.brand(),
                 intent.category(),
+                intent.subcategory(),
                 intent.minPrice(),
                 intent.maxPrice(),
                 intent.inStockOnly(),
@@ -661,10 +712,18 @@ public class ChatService {
         );
     }
 
+    private String formatCatalogLabel(ProductResponse product) {
+        if (product.subcategoryName() == null || product.subcategoryName().isBlank()) {
+            return product.categoryName();
+        }
+        return product.categoryName() + " / " + product.subcategoryName();
+    }
+
     private record SearchIntent(
             String keyword,
             String brand,
             String category,
+            String subcategory,
             BigDecimal minPrice,
             BigDecimal maxPrice,
             boolean inStockOnly,
