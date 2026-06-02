@@ -4,6 +4,7 @@ import com.hbcstore.hbcstore_api.catalog.Product;
 import com.hbcstore.hbcstore_api.catalog.ProductRepository;
 import com.hbcstore.hbcstore_api.coupon.CouponRepository;
 import com.hbcstore.hbcstore_api.coupon.Coupon;
+import com.hbcstore.hbcstore_api.notification.AdminNotificationService;
 import com.hbcstore.hbcstore_api.promotion.PromotionProduct;
 import com.hbcstore.hbcstore_api.promotion.PromotionProductRepository;
 import com.hbcstore.hbcstore_api.shipping.ShippingService;
@@ -35,6 +36,7 @@ public class OrderService {
     private final CouponRepository couponRepository;
     private final PromotionProductRepository promotionProductRepository;
     private final ShippingService shippingService;
+    private final AdminNotificationService adminNotificationService;
 
     public OrderService(
             StoreOrderRepository orderRepository,
@@ -43,7 +45,8 @@ public class OrderService {
             UserRepository userRepository,
             CouponRepository couponRepository,
             PromotionProductRepository promotionProductRepository,
-            ShippingService shippingService
+            ShippingService shippingService,
+            AdminNotificationService adminNotificationService
     ) {
         this.orderRepository = orderRepository;
         this.orderDetailRepository = orderDetailRepository;
@@ -52,6 +55,7 @@ public class OrderService {
         this.couponRepository = couponRepository;
         this.promotionProductRepository = promotionProductRepository;
         this.shippingService = shippingService;
+        this.adminNotificationService = adminNotificationService;
     }
 
     public List<OrderResponse> getAll() {
@@ -120,6 +124,7 @@ public class OrderService {
 
         StoreOrder savedOrder = orderRepository.save(order);
         request.items().forEach(item -> saveOrderDetail(savedOrder, item));
+        adminNotificationService.createNewOrderNotification(savedOrder);
         return toResponse(savedOrder);
     }
 
