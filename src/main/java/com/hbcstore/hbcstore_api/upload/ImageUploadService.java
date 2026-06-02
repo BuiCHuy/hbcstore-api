@@ -1,11 +1,6 @@
 package com.hbcstore.hbcstore_api.upload;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -13,26 +8,40 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
 public class ImageUploadService {
     private static final long MAX_FILE_SIZE_BYTES = 5L * 1024 * 1024;
 
-    private final Path uploadDir;
+    private final String bucket;
+    private final String publicBaseUrl;
+    private final String keyPrefix;
+    private final S3Client s3Client;
 
-    public ImageUploadService(@Value("${app.upload.dir:uploads}") String uploadDir) {
-        this.uploadDir = Paths.get(uploadDir).toAbsolutePath().normalize();
+    public ImageUploadService(
+            @Value("${S3_BUCKET:}") String bucket,
+            @Value("${AWS_REGION:ap-southeast-1}") String region,
+            @Value("${S3_PUBLIC_BASE_URL:}") String publicBaseUrl,
+            @Value("${app.upload.s3-prefix:uploads}") String keyPrefix
+    ) {
+        if (bucket == null || bucket.isBlank()) {
+            throw new IllegalStateException("S3_BUCKET is required");
+        }
+        this.bucket = bucket.trim();
+        this.publicBaseUrl = publicBaseUrl == null ? "" : publicBaseUrl.trim();
+        this.keyPrefix = keyPrefix == null ? "uploads" : keyPrefix.trim();
+        this.s3Client = S3Client.builder()
+                .region(Region.of(region))
+                .build();
     }
 
     public List<String> uploadImages(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("No files provided");
-        }
-
-        try {
-            Files.createDirectories(uploadDir);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Cannot create upload directory", exception);
         }
 
         List<String> urls = new ArrayList<>();
@@ -42,8 +51,9 @@ public class ImageUploadService {
             }
 
             validateFile(file);
-            String savedFileName = saveFile(file);
-            urls.add("/uploads/" + savedFileName);
+            String key = buildObjectKey(file);
+            putObject(file, key);
+            urls.add(buildPublicUrl(key));
         }
 
         if (urls.isEmpty()) {
@@ -63,26 +73,38 @@ public class ImageUploadService {
         }
     }
 
-    private String saveFile(MultipartFile file) {
+    private String buildObjectKey(MultipartFile file) {
         String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "" : file.getOriginalFilename());
         String extension = "";
         int lastDot = originalName.lastIndexOf('.');
         if (lastDot >= 0) {
             extension = originalName.substring(lastDot).toLowerCase();
         }
+        String safePrefix = keyPrefix.endsWith("/") ? keyPrefix.substring(0, keyPrefix.length() - 1) : keyPrefix;
+        return safePrefix + "/" + UUID.randomUUID() + extension;
+    }
 
-        String fileName = UUID.randomUUID() + extension;
-        Path targetPath = uploadDir.resolve(fileName).normalize();
-
-        if (!targetPath.startsWith(uploadDir)) {
-            throw new IllegalArgumentException("Invalid file path");
-        }
-
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
-            return fileName;
+    private void putObject(MultipartFile file, String key) {
+        try {
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .build();
+            s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));
         } catch (IOException exception) {
-            throw new IllegalStateException("Cannot store image file", exception);
+            throw new IllegalStateException("Cannot read image file", exception);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot upload image to S3", exception);
         }
     }
+
+    private String buildPublicUrl(String key) {
+        if (!publicBaseUrl.isBlank()) {
+            String base = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+            return base + "/" + key;
+        }
+        return "https://" + bucket + ".s3.amazonaws.com/" + key;
+    }
 }
+

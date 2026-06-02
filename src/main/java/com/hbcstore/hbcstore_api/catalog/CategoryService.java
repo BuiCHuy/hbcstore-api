@@ -55,6 +55,7 @@ public class CategoryService {
     private void applyRequest(Category category, CategoryRequest request) {
         category.setName(request.name().trim());
         category.setDescription(request.description());
+        category.setIconUrl(request.iconUrl());
         category.setStatus(request.status() == null ? Category.Status.ACTIVE : request.status());
     }
 }

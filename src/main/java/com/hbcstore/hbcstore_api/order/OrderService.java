@@ -6,6 +6,7 @@ import com.hbcstore.hbcstore_api.coupon.CouponRepository;
 import com.hbcstore.hbcstore_api.coupon.Coupon;
 import com.hbcstore.hbcstore_api.promotion.PromotionProduct;
 import com.hbcstore.hbcstore_api.promotion.PromotionProductRepository;
+import com.hbcstore.hbcstore_api.shipping.ShippingService;
 import com.hbcstore.hbcstore_api.order.dto.CreateOrderItemRequest;
 import com.hbcstore.hbcstore_api.order.dto.CreateOrderRequest;
 import com.hbcstore.hbcstore_api.order.dto.OrderItemResponse;
@@ -33,6 +34,7 @@ public class OrderService {
     private final UserRepository userRepository;
     private final CouponRepository couponRepository;
     private final PromotionProductRepository promotionProductRepository;
+    private final ShippingService shippingService;
 
     public OrderService(
             StoreOrderRepository orderRepository,
@@ -40,7 +42,8 @@ public class OrderService {
             ProductRepository productRepository,
             UserRepository userRepository,
             CouponRepository couponRepository,
-            PromotionProductRepository promotionProductRepository
+            PromotionProductRepository promotionProductRepository,
+            ShippingService shippingService
     ) {
         this.orderRepository = orderRepository;
         this.orderDetailRepository = orderDetailRepository;
@@ -48,6 +51,7 @@ public class OrderService {
         this.userRepository = userRepository;
         this.couponRepository = couponRepository;
         this.promotionProductRepository = promotionProductRepository;
+        this.shippingService = shippingService;
     }
 
     public List<OrderResponse> getAll() {
@@ -105,12 +109,12 @@ public class OrderService {
         } else {
             order.setPaymentExpiredAt(null);
         }
-        order.setShippingFee(request.shippingFee() == null ? BigDecimal.ZERO : request.shippingFee());
         order.setDiscountAmount(request.discountAmount() == null ? BigDecimal.ZERO : request.discountAmount());
 
         BigDecimal subtotal = request.items().stream()
                 .map(this::calculateItemTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setShippingFee(shippingService.calculateFee(subtotal, order.getShippingAddress()));
         order.setSubtotalAmount(subtotal);
         order.setTotalAmount(subtotal.add(order.getShippingFee()).subtract(order.getDiscountAmount()));
 

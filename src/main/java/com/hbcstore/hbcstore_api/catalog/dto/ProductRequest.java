@@ -18,6 +18,7 @@ public record ProductRequest(
         @Size(max = 500) String thumbnailUrl,
         String description,
         @NotNull Long categoryId,
+        Long subcategoryId,
         @NotNull Long brandId,
         Product.ProductStatus status,
         @JsonAlias({"image_urls", "images"}) List<String> imageUrls,

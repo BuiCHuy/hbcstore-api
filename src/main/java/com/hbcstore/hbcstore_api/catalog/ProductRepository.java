@@ -11,18 +11,18 @@ import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
     @Override
-    @EntityGraph(attributePaths = {"category", "brand", "productImages", "productAttributes"})
+    @EntityGraph(attributePaths = {"category", "subcategory", "brand", "productImages", "productAttributes"})
     List<Product> findAll();
 
     @Override
-    @EntityGraph(attributePaths = {"category", "brand", "productImages", "productAttributes"})
+    @EntityGraph(attributePaths = {"category", "subcategory", "brand", "productImages", "productAttributes"})
     Page<Product> findAll(Pageable pageable);
 
     @Override
-    @EntityGraph(attributePaths = {"category", "brand", "productImages", "productAttributes"})
+    @EntityGraph(attributePaths = {"category", "subcategory", "brand", "productImages", "productAttributes"})
     Optional<Product> findById(Long id);
 
-    @EntityGraph(attributePaths = {"category", "brand", "productImages", "productAttributes"})
+    @EntityGraph(attributePaths = {"category", "subcategory", "brand", "productImages", "productAttributes"})
     @Query("""
             select p from Product p
             left join p.category c
@@ -34,7 +34,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             """)
     List<Product> search(@Param("keyword") String keyword);
 
-    @EntityGraph(attributePaths = {"category", "brand", "productImages", "productAttributes"})
+    @EntityGraph(attributePaths = {"category", "subcategory", "brand", "productImages", "productAttributes"})
     @Query("""
             select p from Product p
             left join p.category c
@@ -45,4 +45,69 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                or lower(coalesce(b.name, '')) like lower(concat('%', :keyword, '%'))
             """)
     Page<Product> search(@Param("keyword") String keyword, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"category", "subcategory", "brand", "productImages", "productAttributes"})
+    @Query("""
+            select distinct p from Product p
+            left join p.category c
+            left join p.brand b
+            where (:keyword is null
+                or lower(p.name) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(p.description, '')) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(c.name, '')) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(b.name, '')) like lower(concat('%', :keyword, '%')))
+              and (:categoryId is null or c.id = :categoryId)
+              and (:subcategoryId is null or p.subcategory.id = :subcategoryId)
+              and (:grade is null or exists (
+                    select 1 from ProductAttribute pa
+                    where pa.product = p
+                      and lower(pa.attributeName) = 'grade'
+                      and upper(trim(pa.attributeValue)) = upper(trim(:grade))
+              ))
+            """)
+    List<Product> searchWithFilters(
+            @Param("keyword") String keyword,
+            @Param("categoryId") Long categoryId,
+            @Param("subcategoryId") Long subcategoryId,
+            @Param("grade") String grade
+    );
+
+    @EntityGraph(attributePaths = {"category", "subcategory", "brand", "productImages", "productAttributes"})
+    @Query("""
+            select distinct p from Product p
+            left join p.category c
+            left join p.brand b
+            where (:keyword is null
+                or lower(p.name) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(p.description, '')) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(c.name, '')) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(b.name, '')) like lower(concat('%', :keyword, '%')))
+              and (:categoryId is null or c.id = :categoryId)
+              and (:subcategoryId is null or p.subcategory.id = :subcategoryId)
+              and (:grade is null or exists (
+                    select 1 from ProductAttribute pa
+                    where pa.product = p
+                      and lower(pa.attributeName) = 'grade'
+                      and upper(trim(pa.attributeValue)) = upper(trim(:grade))
+              ))
+            """)
+    Page<Product> searchWithFilters(
+            @Param("keyword") String keyword,
+            @Param("categoryId") Long categoryId,
+            @Param("subcategoryId") Long subcategoryId,
+            @Param("grade") String grade,
+            Pageable pageable
+    );
+
+    @Query("""
+            select upper(trim(pa.attributeValue)), count(distinct p.id)
+            from Product p
+            join p.productAttributes pa
+            where lower(pa.attributeName) = 'grade'
+              and (:categoryId is null or p.category.id = :categoryId)
+              and p.status <> com.hbcstore.hbcstore_api.catalog.Product.ProductStatus.INACTIVE
+            group by upper(trim(pa.attributeValue))
+            order by count(distinct p.id) desc
+            """)
+    List<Object[]> findGradeFacets(@Param("categoryId") Long categoryId);
 }

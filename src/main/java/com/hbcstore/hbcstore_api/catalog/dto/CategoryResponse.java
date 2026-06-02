@@ -7,6 +7,7 @@ public record CategoryResponse(
         Long id,
         String name,
         String description,
+        String iconUrl,
         Category.Status status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -16,6 +17,7 @@ public record CategoryResponse(
                 category.getId(),
                 category.getName(),
                 category.getDescription(),
+                category.getIconUrl(),
                 category.getStatus(),
                 category.getCreatedAt(),
                 category.getUpdatedAt()

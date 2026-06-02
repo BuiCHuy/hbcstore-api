@@ -1,15 +1,20 @@
 package com.hbcstore.hbcstore_api.auth;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hbcstore.hbcstore_api.user.User;
 import com.hbcstore.hbcstore_api.user.UserRepository;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,22 +24,32 @@ public class EmailVerificationService {
 
     private final EmailVerificationTokenRepository tokenRepository;
     private final UserRepository userRepository;
-    private final JavaMailSender mailSender;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
     private final String verifyBaseUrl;
     private final long ttlMinutes;
+    private final String brevoApiKey;
+    private final String brevoFromEmail;
+    private final String brevoFromName;
 
     public EmailVerificationService(
             EmailVerificationTokenRepository tokenRepository,
             UserRepository userRepository,
-            ObjectProvider<JavaMailSender> mailSenderProvider,
             @Value("${app.auth.verify.base-url:http://localhost:5173/verify-email}") String verifyBaseUrl,
-            @Value("${app.auth.verify.ttl-minutes:30}") long ttlMinutes
+            @Value("${app.auth.verify.ttl-minutes:30}") long ttlMinutes,
+            @Value("${brevo.api-key:}") String brevoApiKey,
+            @Value("${brevo.from-email:}") String brevoFromEmail,
+            @Value("${brevo.from-name:HBC Store}") String brevoFromName
     ) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
-        this.mailSender = mailSenderProvider.getIfAvailable();
+        this.objectMapper = new ObjectMapper();
+        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
         this.verifyBaseUrl = verifyBaseUrl;
         this.ttlMinutes = ttlMinutes;
+        this.brevoApiKey = brevoApiKey == null ? "" : brevoApiKey.trim();
+        this.brevoFromEmail = brevoFromEmail == null ? "" : brevoFromEmail.trim();
+        this.brevoFromName = brevoFromName == null ? "HBC Store" : brevoFromName.trim();
     }
 
     @Transactional
@@ -85,14 +100,54 @@ public class EmailVerificationService {
     }
 
     private void sendVerificationEmail(String email, String verifyUrl) {
-        if (mailSender == null) {
-            log.warn("Mail sender is not configured. Verification URL for {}: {}", email, verifyUrl);
-            return;
+        if (brevoApiKey.isBlank() || brevoFromEmail.isBlank()) {
+            throw new IllegalStateException("Thiếu cấu hình BREVO_API_KEY hoặc BREVO_FROM_EMAIL.");
         }
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(email);
-        message.setSubject("Xac thuc tai khoan HBC Store");
-        message.setText("Nhan vao link de xac thuc tai khoan:\n" + verifyUrl);
-        mailSender.send(message);
+        sendByBrevo(email, verifyUrl);
+    }
+
+    private void sendByBrevo(String toEmail, String verifyUrl) {
+        try {
+            Map<String, Object> sender = new HashMap<>();
+            sender.put("name", brevoFromName);
+            sender.put("email", brevoFromEmail);
+
+            Map<String, Object> to = new HashMap<>();
+            to.put("email", toEmail);
+
+            String html = "<p>Chào bạn,</p>"
+                    + "<p>Nhấn vào liên kết dưới đây để xác thực tài khoản HBC Store:</p>"
+                    + "<p><a href=\"" + verifyUrl + "\">Xác thực tài khoản</a></p>"
+                    + "<p>Liên kết có hiệu lực trong " + ttlMinutes + " phút.</p>";
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("sender", sender);
+            payload.put("to", new Object[]{to});
+            payload.put("subject", "Xác thực tài khoản HBC Store");
+            payload.put("htmlContent", html);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("api-key", brevoApiKey)
+                    .header("accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int code = response.statusCode();
+            if (code < 200 || code >= 300) {
+                log.error("Brevo send failed. status={}, body={}", code, response.body());
+                String body = response.body() == null ? "" : response.body();
+                if (body.length() > 240) {
+                    body = body.substring(0, 240) + "...";
+                }
+                throw new IllegalStateException("Brevo API lỗi (status=" + code + "): " + body);
+            }
+        } catch (Exception ex) {
+            String detail = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            throw new IllegalStateException("Không gửi được email xác thực qua Brevo: " + detail, ex);
+        }
     }
 }
