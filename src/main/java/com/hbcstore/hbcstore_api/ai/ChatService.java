@@ -217,17 +217,7 @@ public class ChatService {
                 .toList();
 
         String fallbackAnswer = buildFallbackAnswer(interpretedQuery, suggestedProducts);
-        List<ChatResponse.ChatProduct> aiContextProducts = productsForSuggestion.stream()
-                .map(item -> new ChatResponse.ChatProduct(
-                        item.id(),
-                        item.name(),
-                        item.thumbnailUrl(),
-                        item.brandName(),
-                        formatCatalogLabel(item),
-                        item.price() == null ? 0 : item.price().doubleValue()
-                ))
-                .toList();
-        String aiPrompt = buildPrompt(message, interpretedQuery, aiContextProducts, intent);
+        String aiPrompt = buildPrompt(message, interpretedQuery, productsForSuggestion, intent);
         String answer = geminiSearchService.generateAnswer(aiPrompt, fallbackAnswer);
         rememberSession(sessionKey, intent);
 
@@ -375,13 +365,7 @@ public class ChatService {
 
     private int scoreProduct(ProductResponse product, Set<String> queryTokens, SearchIntent intent) {
         int score = 0;
-        String haystack = normalize(
-                (product.name() == null ? "" : product.name()) + " "
-                        + (product.description() == null ? "" : product.description()) + " "
-                        + (product.categoryName() == null ? "" : product.categoryName()) + " "
-                        + (product.subcategoryName() == null ? "" : product.subcategoryName()) + " "
-                        + (product.brandName() == null ? "" : product.brandName())
-        );
+        String haystack = buildProductHaystack(product);
 
         for (String token : queryTokens) {
             if (token.length() >= 2 && haystack.contains(token)) {
@@ -503,16 +487,28 @@ public class ChatService {
         if (theme == null) return true;
         List<String> tokens = THEME_KEYWORDS.get(theme);
         if (tokens == null || tokens.isEmpty()) return true;
-        String haystack = normalize(
-                (product.name() == null ? "" : product.name()) + " "
-                        + (product.description() == null ? "" : product.description())
-        );
+        String haystack = buildProductHaystack(product);
         for (String token : tokens) {
             if (haystack.contains(normalize(token))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private String buildProductHaystack(ProductResponse product) {
+        String attributeText = product.attributes() == null ? "" : product.attributes().stream()
+                .map(attribute -> (attribute.name() == null ? "" : attribute.name()) + " "
+                        + (attribute.value() == null ? "" : attribute.value()))
+                .reduce("", (left, right) -> left + " " + right);
+        return normalize(
+                (product.name() == null ? "" : product.name()) + " "
+                        + (product.description() == null ? "" : product.description()) + " "
+                        + (product.categoryName() == null ? "" : product.categoryName()) + " "
+                        + (product.subcategoryName() == null ? "" : product.subcategoryName()) + " "
+                        + (product.brandName() == null ? "" : product.brandName()) + " "
+                        + attributeText
+        );
     }
 
     private static BigDecimal parseMoney(String numberPart, String unitPart, String halfPart) {
@@ -656,22 +652,32 @@ public class ChatService {
     private static String buildPrompt(
             String userMessage,
             String interpretedQuery,
-            List<ChatResponse.ChatProduct> products,
+            List<ProductResponse> products,
             SearchIntent intent
     ) {
         StringBuilder context = new StringBuilder();
         for (int i = 0; i < products.size(); i++) {
-            ChatResponse.ChatProduct p = products.get(i);
+            ProductResponse p = products.get(i);
+            String attributes = p.attributes() == null ? "" : p.attributes().stream()
+                    .map(attribute -> "%s: %s".formatted(attribute.name(), attribute.value()))
+                    .reduce((left, right) -> left + ", " + right)
+                    .orElse("");
             context.append(i + 1)
                     .append(". ")
                     .append(p.name())
                     .append(" | ")
-                    .append(p.brand())
+                    .append(p.brandName())
                     .append(" | ")
-                    .append(p.category())
+                    .append(p.subcategoryName() == null || p.subcategoryName().isBlank()
+                            ? p.categoryName()
+                            : p.categoryName() + " / " + p.subcategoryName())
                     .append(" | ")
-                    .append((long) p.price())
-                    .append(" VND\n");
+                    .append(p.price() == null ? 0L : p.price().longValue())
+                    .append(" VND");
+            if (!attributes.isBlank()) {
+                context.append(" | thuộc tính: ").append(attributes);
+            }
+            context.append("\n");
         }
 
         return """
