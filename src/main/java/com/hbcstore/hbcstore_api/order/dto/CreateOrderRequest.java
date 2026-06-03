@@ -16,6 +16,7 @@ public record CreateOrderRequest(
         @NotBlank String shippingAddress,
         @NotNull StoreOrder.PaymentMethod paymentMethod,
         Long couponId,
+        @Size(max = 50) String couponCode,
         BigDecimal shippingFee,
         BigDecimal discountAmount,
         @NotEmpty List<@Valid CreateOrderItemRequest> items

@@ -47,7 +47,7 @@ public class PayOSPaymentService {
     @Transactional
     public PayOSCreatePaymentResponse createPayment(Long orderId, String principalEmail) {
         StoreOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng"));
         validateOrderOwnership(order, principalEmail);
         validateOrderForPayOS(order);
 
@@ -62,7 +62,7 @@ public class PayOSPaymentService {
                     "HBC-" + order.getId(),
                     "",
                     payOSProperties.getReturnUrl(),
-                    "Mock mode: PayOS payment link generated",
+                    "Đã tạo liên kết thanh toán PayOS ở chế độ thử nghiệm",
                     0
             );
         }
@@ -116,42 +116,42 @@ public class PayOSPaymentService {
                     String.valueOf(orderCode),
                     qrCode,
                     payUrl,
-                    "Payment link generated",
+                    "Đã tạo liên kết thanh toán",
                     0
             );
         } catch (Exception ex) {
-            throw new IllegalStateException("Cannot create PayOS payment link", ex);
+            throw new IllegalStateException("Không thể tạo liên kết thanh toán PayOS", ex);
         }
     }
 
     @Transactional
     public Map<String, String> handleWebhook(Map<String, Object> payload) {
         if (!verifyChecksumIfProvided(payload)) {
-            return Map.of("code", "97", "message", "Invalid signature");
+            return Map.of("code", "97", "message", "Chữ ký xác thực không hợp lệ");
         }
 
         Long orderId = extractOrderId(payload);
         if (orderId == null) {
-            return Map.of("code", "01", "message", "Order not found");
+            return Map.of("code", "01", "message", "Không tìm thấy đơn hàng");
         }
 
         StoreOrder order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
-            return Map.of("code", "01", "message", "Order not found");
+            return Map.of("code", "01", "message", "Không tìm thấy đơn hàng");
         }
 
         if (order.getPaymentStatus() == StoreOrder.PaymentStatus.PAID) {
-            return Map.of("code", "00", "message", "Already paid");
+            return Map.of("code", "00", "message", "Đơn hàng đã được thanh toán");
         }
 
         if (isPaidEvent(payload)) {
             order.setPaymentStatus(StoreOrder.PaymentStatus.PAID);
             order.setPaymentExpiredAt(null);
             orderRepository.save(order);
-            return Map.of("code", "00", "message", "Payment confirmed");
+            return Map.of("code", "00", "message", "Thanh toán đã được xác nhận");
         }
 
-        return Map.of("code", "00", "message", "Event received");
+        return Map.of("code", "00", "message", "Đã nhận sự kiện thanh toán");
     }
 
     @Transactional
@@ -178,7 +178,7 @@ public class PayOSPaymentService {
             }
         }
         if (orderId == null) {
-            return Map.of("code", "01", "message", "Order not found");
+            return Map.of("code", "01", "message", "Không tìm thấy đơn hàng");
         }
 
         // Source of truth: query PayOS link status when payment link id is available.
@@ -196,17 +196,17 @@ public class PayOSPaymentService {
 
         StoreOrder order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
-            return Map.of("code", "01", "message", "Order not found");
+            return Map.of("code", "01", "message", "Không tìm thấy đơn hàng");
         }
 
         if (paid) {
             order.setPaymentStatus(StoreOrder.PaymentStatus.PAID);
             order.setPaymentExpiredAt(null);
             orderRepository.save(order);
-            return Map.of("code", "00", "message", "Payment confirmed");
+            return Map.of("code", "00", "message", "Thanh toán đã được xác nhận");
         }
 
-        return Map.of("code", "00", "message", "Return received");
+        return Map.of("code", "00", "message", "Đã nhận kết quả thanh toán");
     }
 
     public Map<String, Object> getSettings() {
@@ -227,30 +227,30 @@ public class PayOSPaymentService {
 
     private void validateOrderOwnership(StoreOrder order, String principalEmail) {
         if (principalEmail == null || principalEmail.isBlank()) {
-            throw new IllegalArgumentException("Unauthenticated request");
+            throw new IllegalArgumentException("Yêu cầu chưa đăng nhập");
         }
         User user = userRepository.findByEmail(principalEmail)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
         if (user.getRole() == User.Role.ADMIN) {
-            throw new IllegalArgumentException("Admin account cannot create payment");
+            throw new IllegalArgumentException("Tài khoản quản trị không thể tạo thanh toán");
         }
         if (order.getUser() == null || !Objects.equals(order.getUser().getId(), user.getId())) {
-            throw new IllegalArgumentException("You can only pay your own order");
+            throw new IllegalArgumentException("Bạn chỉ có thể thanh toán đơn hàng của chính mình");
         }
     }
 
     private void validateOrderForPayOS(StoreOrder order) {
         if (order.getPaymentMethod() != StoreOrder.PaymentMethod.BANK_TRANSFER) {
-            throw new IllegalArgumentException("Order payment method is not BANK_TRANSFER");
+            throw new IllegalArgumentException("Đơn hàng này không dùng phương thức chuyển khoản");
         }
         if (order.getPaymentStatus() == StoreOrder.PaymentStatus.PAID) {
-            throw new IllegalArgumentException("Order already paid");
+            throw new IllegalArgumentException("Đơn hàng đã được thanh toán");
         }
         if (order.getStatus() == StoreOrder.OrderStatus.CANCELLED) {
-            throw new IllegalArgumentException("Cancelled order cannot be paid");
+            throw new IllegalArgumentException("Đơn hàng đã hủy không thể thanh toán");
         }
         if (order.getStatus() == StoreOrder.OrderStatus.DELIVERED) {
-            throw new IllegalArgumentException("Delivered order cannot be paid");
+            throw new IllegalArgumentException("Đơn hàng đã giao không thể thanh toán");
         }
     }
 
@@ -304,7 +304,7 @@ public class PayOSPaymentService {
             }
             return hash.toString();
         } catch (Exception ex) {
-            throw new IllegalStateException("Cannot verify checksum", ex);
+            throw new IllegalStateException("Không thể xác minh chữ ký thanh toán", ex);
         }
     }
 

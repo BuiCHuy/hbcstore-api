@@ -12,6 +12,9 @@ public record ProductResponse(
         Long id,
         String name,
         BigDecimal price,
+        BigDecimal originalPrice,
+        Integer discountPercent,
+        Long promotionId,
         Integer stockQuantity,
         String thumbnailUrl,
         String description,
@@ -29,11 +32,22 @@ public record ProductResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static ProductResponse from(Product product, Double rating, Long reviewCount) {
+    public static ProductResponse from(
+            Product product,
+            Double rating,
+            Long reviewCount,
+            BigDecimal displayPrice,
+            BigDecimal originalPrice,
+            Integer discountPercent,
+            Long promotionId
+    ) {
         return new ProductResponse(
                 product.getId(),
                 product.getName(),
-                product.getPrice(),
+                displayPrice,
+                originalPrice,
+                discountPercent,
+                promotionId,
                 product.getStockQuantity(),
                 product.getThumbnailUrl(),
                 product.getDescription(),

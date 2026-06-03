@@ -5,11 +5,15 @@ import com.hbcstore.hbcstore_api.catalog.ProductRepository;
 import com.hbcstore.hbcstore_api.coupon.CouponRepository;
 import com.hbcstore.hbcstore_api.coupon.Coupon;
 import com.hbcstore.hbcstore_api.notification.AdminNotificationService;
+import com.hbcstore.hbcstore_api.pricing.ProductPriceSnapshot;
+import com.hbcstore.hbcstore_api.pricing.PricingService;
 import com.hbcstore.hbcstore_api.promotion.PromotionProduct;
 import com.hbcstore.hbcstore_api.promotion.PromotionProductRepository;
 import com.hbcstore.hbcstore_api.shipping.ShippingService;
 import com.hbcstore.hbcstore_api.order.dto.CreateOrderItemRequest;
 import com.hbcstore.hbcstore_api.order.dto.CreateOrderRequest;
+import com.hbcstore.hbcstore_api.order.dto.OrderQuoteItemResponse;
+import com.hbcstore.hbcstore_api.order.dto.OrderQuoteResponse;
 import com.hbcstore.hbcstore_api.order.dto.OrderItemResponse;
 import com.hbcstore.hbcstore_api.order.dto.OrderResponse;
 import com.hbcstore.hbcstore_api.order.dto.OrderStatusRequest;
@@ -37,6 +41,7 @@ public class OrderService {
     private final PromotionProductRepository promotionProductRepository;
     private final ShippingService shippingService;
     private final AdminNotificationService adminNotificationService;
+    private final PricingService pricingService;
 
     public OrderService(
             StoreOrderRepository orderRepository,
@@ -46,7 +51,8 @@ public class OrderService {
             CouponRepository couponRepository,
             PromotionProductRepository promotionProductRepository,
             ShippingService shippingService,
-            AdminNotificationService adminNotificationService
+            AdminNotificationService adminNotificationService,
+            PricingService pricingService
     ) {
         this.orderRepository = orderRepository;
         this.orderDetailRepository = orderDetailRepository;
@@ -56,9 +62,11 @@ public class OrderService {
         this.promotionProductRepository = promotionProductRepository;
         this.shippingService = shippingService;
         this.adminNotificationService = adminNotificationService;
+        this.pricingService = pricingService;
     }
 
-    public List<OrderResponse> getAll() {
+    public List<OrderResponse> getAll(String principalEmail) {
+        requireAdmin(principalEmail);
         return orderRepository.findAll().stream()
                 .map(this::toResponse)
                 .toList();
@@ -79,32 +87,26 @@ public class OrderService {
                 .toList();
     }
 
-    public OrderResponse getById(Long id) {
-        return toResponse(findOrder(id));
+    public OrderResponse getById(Long id, String principalEmail) {
+        StoreOrder order = findOrder(id);
+        validateOrderAccess(order, principalEmail);
+        return toResponse(order);
     }
 
     @Transactional
     public OrderResponse create(CreateOrderRequest request, String userEmail) {
+        User user = requireCustomer(userEmail);
+        ResolvedOrderQuote quote = resolveQuote(request, user);
         StoreOrder order = new StoreOrder();
-        if (userEmail != null && !userEmail.isBlank()) {
-            User user = userRepository.findByEmailIgnoreCase(userEmail)
-                    .orElseThrow(() -> new IllegalArgumentException("Authenticated user not found"));
-            if (user.getRole() == User.Role.ADMIN) {
-                throw new IllegalArgumentException("Admin account cannot place orders");
-            }
-            order.setUser(user);
-        }
+        order.setUser(user);
         order.setGuestName(request.customerName());
         order.setGuestPhone(request.customerPhone());
         order.setGuestEmail(request.customerEmail());
         order.setShippingAddress(request.shippingAddress());
         order.setPaymentMethod(request.paymentMethod());
-        if (request.couponId() != null) {
-            var coupon = couponRepository.findById(request.couponId())
-                    .orElseThrow(() -> new IllegalArgumentException("Coupon not found"));
-            validateCouponPerUserLimit(order, coupon);
-            validateAndConsumeCoupon(coupon);
-            order.setCoupon(coupon);
+        if (quote.coupon() != null) {
+            validateAndConsumeCoupon(quote.coupon());
+            order.setCoupon(quote.coupon());
         }
         order.setPaymentStatus(StoreOrder.PaymentStatus.UNPAID);
         order.setStatus(StoreOrder.OrderStatus.PENDING);
@@ -113,64 +115,69 @@ public class OrderService {
         } else {
             order.setPaymentExpiredAt(null);
         }
-        order.setDiscountAmount(request.discountAmount() == null ? BigDecimal.ZERO : request.discountAmount());
-
-        BigDecimal subtotal = request.items().stream()
-                .map(this::calculateItemTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        order.setShippingFee(shippingService.calculateFee(subtotal, order.getShippingAddress()));
-        order.setSubtotalAmount(subtotal);
-        order.setTotalAmount(subtotal.add(order.getShippingFee()).subtract(order.getDiscountAmount()));
+        order.setDiscountAmount(quote.discountAmount());
+        order.setShippingFee(quote.shippingFee());
+        order.setSubtotalAmount(quote.subtotalAmount());
+        order.setTotalAmount(quote.totalAmount());
 
         StoreOrder savedOrder = orderRepository.save(order);
-        request.items().forEach(item -> saveOrderDetail(savedOrder, item));
+        quote.items().forEach(item -> saveOrderDetail(savedOrder, item));
         adminNotificationService.createNewOrderNotification(savedOrder);
         return toResponse(savedOrder);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderQuoteResponse quote(CreateOrderRequest request, String userEmail) {
+        User user = requireCustomer(userEmail);
+        ResolvedOrderQuote quote = resolveQuote(request, user);
+        return new OrderQuoteResponse(
+                quote.items().stream()
+                        .map(item -> new OrderQuoteItemResponse(
+                                item.product().getId(),
+                                item.product().getName(),
+                                item.quantity(),
+                                item.unitPrice(),
+                                item.totalPrice()
+                        ))
+                        .toList(),
+                quote.coupon() == null ? null : quote.coupon().getId(),
+                quote.coupon() == null ? null : quote.coupon().getCode(),
+                quote.subtotalAmount(),
+                quote.shippingFee(),
+                quote.discountAmount(),
+                quote.totalAmount()
+        );
     }
 
     private void validateAndConsumeCoupon(com.hbcstore.hbcstore_api.coupon.Coupon coupon) {
         LocalDateTime now = LocalDateTime.now();
         if (coupon.getStatus() != com.hbcstore.hbcstore_api.coupon.Coupon.CouponStatus.ACTIVE) {
-            throw new IllegalArgumentException("Coupon is not active");
+            throw new IllegalArgumentException("Mã giảm giá hiện không hoạt động");
         }
         if (coupon.getStartDate() != null && coupon.getStartDate().isAfter(now)) {
-            throw new IllegalArgumentException("Coupon is not active yet");
+            throw new IllegalArgumentException("Mã giảm giá chưa đến thời gian áp dụng");
         }
         if (coupon.getEndDate() != null && coupon.getEndDate().isBefore(now)) {
-            throw new IllegalArgumentException("Coupon has expired");
+            throw new IllegalArgumentException("Mã giảm giá đã hết hạn");
         }
         int usedCount = coupon.getUsedCount() == null ? 0 : coupon.getUsedCount();
         Integer usageLimit = coupon.getUsageLimit();
         if (usageLimit != null && usageLimit > 0 && usedCount >= usageLimit) {
-            throw new IllegalArgumentException("Coupon usage limit reached");
+            throw new IllegalArgumentException("Mã giảm giá đã hết lượt sử dụng");
         }
         coupon.setUsedCount(usedCount + 1);
     }
 
-    private void validateCouponPerUserLimit(StoreOrder order, Coupon coupon) {
-        if (order.getUser() == null || order.getUser().getId() == null || coupon == null || coupon.getId() == null) {
-            return;
-        }
-
-        boolean alreadyUsed = orderRepository.existsCouponUsageByUserExcludingCancelled(
-                order.getUser().getId(),
-                coupon.getId(),
-                StoreOrder.OrderStatus.CANCELLED
-        );
-        if (alreadyUsed) {
-            throw new IllegalArgumentException("Each user can only use this coupon once");
-        }
-    }
-
     @Transactional
-    public OrderResponse updateStatus(Long id, OrderStatusRequest request) {
+    public OrderResponse updateStatus(Long id, OrderStatusRequest request, String principalEmail) {
+        requireAdmin(principalEmail);
         StoreOrder order = findOrder(id);
         validateStatusTransition(order.getStatus(), request.status());
         validatePaymentBeforeStatusTransition(order, request.status());
 
         if (request.status() == StoreOrder.OrderStatus.CANCELLED
                 && order.getPaymentStatus() == StoreOrder.PaymentStatus.PAID) {
-            throw new IllegalArgumentException("Cannot cancel a paid order");
+            throw new IllegalArgumentException("Không thể hủy đơn hàng đã thanh toán");
         }
 
         if (request.status() == StoreOrder.OrderStatus.CANCELLED) {
@@ -186,6 +193,24 @@ public class OrderService {
 
         StoreOrder saved = orderRepository.save(order);
         return toResponse(saved);
+    }
+
+    @Transactional
+    public OrderResponse cancelMine(Long id, String principalEmail) {
+        User user = requireCustomer(principalEmail);
+        StoreOrder order = findOrder(id);
+        if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Bạn không có quyền hủy đơn hàng này");
+        }
+        if (order.getStatus() != StoreOrder.OrderStatus.PENDING) {
+            throw new IllegalArgumentException("Chỉ có thể hủy đơn ở trạng thái chờ xử lý");
+        }
+        if (order.getPaymentStatus() == StoreOrder.PaymentStatus.PAID) {
+            throw new IllegalArgumentException("Không thể hủy đơn đã thanh toán");
+        }
+        rollbackConsumptionOnCancel(order);
+        order.setStatus(StoreOrder.OrderStatus.CANCELLED);
+        return toResponse(orderRepository.save(order));
     }
 
     private void rollbackConsumptionOnCancel(StoreOrder order) {
@@ -228,7 +253,7 @@ public class OrderService {
 
     private void validateStatusTransition(StoreOrder.OrderStatus current, StoreOrder.OrderStatus next) {
         if (current == null || next == null) {
-            throw new IllegalArgumentException("Invalid order status");
+            throw new IllegalArgumentException("Trạng thái đơn hàng không hợp lệ");
         }
         if (current == next) {
             return;
@@ -243,7 +268,7 @@ public class OrderService {
 
         if (!allowedNextStatuses.contains(next)) {
             throw new IllegalArgumentException(
-                    "Invalid status transition: " + current + " -> " + next
+                    "Chuyển trạng thái đơn hàng không hợp lệ: " + current + " -> " + next
             );
         }
     }
@@ -256,31 +281,21 @@ public class OrderService {
             return;
         }
         if (order.getPaymentStatus() != StoreOrder.PaymentStatus.PAID) {
-            throw new IllegalArgumentException("Bank transfer order must be paid before processing");
+            throw new IllegalArgumentException("Đơn chuyển khoản phải được thanh toán trước khi xử lý");
         }
         if (order.getPaymentExpiredAt() != null && order.getPaymentExpiredAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Payment has expired");
+            throw new IllegalArgumentException("Thanh toán đã hết hạn");
         }
     }
 
     private StoreOrder findOrder(Long id) {
         return orderRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng"));
     }
 
-    private BigDecimal calculateItemTotal(CreateOrderItemRequest item) {
-        Product product = productRepository.findById(item.productId())
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
-        BigDecimal unitPrice = item.unitPrice() == null ? product.getPrice() : item.unitPrice();
-        return unitPrice.multiply(BigDecimal.valueOf(item.quantity()));
-    }
-
-    private void saveOrderDetail(StoreOrder order, CreateOrderItemRequest item) {
-        Product product = productRepository.findById(item.productId())
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
-        BigDecimal unitPrice = item.unitPrice() == null ? product.getPrice() : item.unitPrice();
-        boolean hasPromotionDiscount = unitPrice.compareTo(product.getPrice()) < 0;
-        if (hasPromotionDiscount) {
+    private void saveOrderDetail(StoreOrder order, ResolvedOrderItem item) {
+        Product product = item.product();
+        if (item.priceSnapshot().usesPromotionStock()) {
             consumePromotionStock(product.getId(), item.quantity());
         }
 
@@ -290,8 +305,8 @@ public class OrderService {
         detail.setProductName(product.getName());
         detail.setProductImage(product.getThumbnailUrl());
         detail.setQuantity(item.quantity());
-        detail.setUnitPrice(unitPrice);
-        detail.setTotalPrice(unitPrice.multiply(BigDecimal.valueOf(item.quantity())));
+        detail.setUnitPrice(item.unitPrice());
+        detail.setTotalPrice(item.totalPrice());
         orderDetailRepository.save(detail);
     }
 
@@ -310,7 +325,7 @@ public class OrderService {
         if (stockLimit != null && stockLimit > 0) {
             int remaining = stockLimit - soldCount;
             if (remaining < quantity) {
-                throw new IllegalArgumentException("Promotion sale stock limit reached");
+                throw new IllegalArgumentException("Số lượng khuyến mãi còn lại không đủ");
             }
         }
 
@@ -346,6 +361,151 @@ public class OrderService {
                 itemCount,
                 items
         );
+    }
+
+    private ResolvedOrderQuote resolveQuote(CreateOrderRequest request, User user) {
+        List<ResolvedOrderItem> items = request.items().stream()
+                .map(this::resolveOrderItem)
+                .toList();
+
+        BigDecimal subtotal = items.stream()
+                .map(ResolvedOrderItem::totalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Coupon coupon = resolveCoupon(request);
+        if (coupon != null) {
+            validateCouponPerUserLimit(user, coupon);
+            validateCouponForCheckout(coupon, subtotal);
+        }
+
+        BigDecimal shippingFee = shippingService.calculateFee(subtotal, request.shippingAddress());
+        BigDecimal discountAmount = pricingService.calculateCouponDiscount(coupon, subtotal);
+        BigDecimal totalAmount = subtotal.add(shippingFee).subtract(discountAmount);
+
+        return new ResolvedOrderQuote(items, coupon, subtotal, shippingFee, discountAmount, totalAmount);
+    }
+
+    private ResolvedOrderItem resolveOrderItem(CreateOrderItemRequest item) {
+        Product product = productRepository.findById(item.productId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm"));
+        if (product.getStatus() == Product.ProductStatus.INACTIVE) {
+            throw new IllegalArgumentException("Sản phẩm hiện đang bị ẩn");
+        }
+        int stock = product.getStockQuantity() == null ? 0 : product.getStockQuantity();
+        if (stock < item.quantity()) {
+            throw new IllegalArgumentException("Sản phẩm không đủ tồn kho: " + product.getName());
+        }
+        ProductPriceSnapshot snapshot = pricingService.resolveProductPrice(product, item.quantity());
+        BigDecimal unitPrice = snapshot.unitPrice() == null ? product.getPrice() : snapshot.unitPrice();
+        BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(item.quantity()));
+        return new ResolvedOrderItem(product, item.quantity(), unitPrice, totalPrice, snapshot);
+    }
+
+    private Coupon resolveCoupon(CreateOrderRequest request) {
+        if (request.couponCode() != null && !request.couponCode().isBlank()) {
+            return couponRepository.findByCodeIgnoreCase(request.couponCode().trim())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá"));
+        }
+        if (request.couponId() != null) {
+            return couponRepository.findById(request.couponId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá"));
+        }
+        return null;
+    }
+
+    private void validateCouponForCheckout(Coupon coupon, BigDecimal subtotal) {
+        LocalDateTime now = LocalDateTime.now();
+        if (coupon.getStatus() != Coupon.CouponStatus.ACTIVE) {
+            throw new IllegalArgumentException("Mã giảm giá hiện không hoạt động");
+        }
+        if (coupon.getStartDate() != null && coupon.getStartDate().isAfter(now)) {
+            throw new IllegalArgumentException("Mã giảm giá chưa đến thời gian áp dụng");
+        }
+        if (coupon.getEndDate() != null && coupon.getEndDate().isBefore(now)) {
+            throw new IllegalArgumentException("Mã giảm giá đã hết hạn");
+        }
+        int usedCount = coupon.getUsedCount() == null ? 0 : coupon.getUsedCount();
+        Integer usageLimit = coupon.getUsageLimit();
+        if (usageLimit != null && usageLimit > 0 && usedCount >= usageLimit) {
+            throw new IllegalArgumentException("Mã giảm giá đã hết lượt sử dụng");
+        }
+        if (coupon.getMinOrderValue() != null && subtotal.compareTo(coupon.getMinOrderValue()) < 0) {
+            throw new IllegalArgumentException("Đơn hàng chưa đạt giá trị tối thiểu để dùng mã giảm giá");
+        }
+    }
+
+    private void validateCouponPerUserLimit(User user, Coupon coupon) {
+        if (user == null || user.getId() == null || coupon == null || coupon.getId() == null) {
+            return;
+        }
+
+        boolean alreadyUsed = orderRepository.existsCouponUsageByUserExcludingCancelled(
+                user.getId(),
+                coupon.getId(),
+                StoreOrder.OrderStatus.CANCELLED
+        );
+        if (alreadyUsed) {
+            throw new IllegalArgumentException("Mỗi người dùng chỉ được sử dụng mã giảm giá này một lần");
+        }
+    }
+
+    private User requireCustomer(String principalEmail) {
+        if (principalEmail == null || principalEmail.isBlank()) {
+            throw new SecurityException("Bạn cần đăng nhập để thực hiện thao tác này");
+        }
+        User user = userRepository.findByEmailIgnoreCase(principalEmail.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản đăng nhập"));
+        if (user.getRole() == User.Role.ADMIN) {
+            throw new SecurityException("Tài khoản admin không thể thực hiện thao tác này");
+        }
+        if (user.getStatus() != User.UserStatus.ACTIVE) {
+            throw new SecurityException("Tài khoản của bạn không hoạt động");
+        }
+        return user;
+    }
+
+    private void requireAdmin(String principalEmail) {
+        if (principalEmail == null || principalEmail.isBlank()) {
+            throw new SecurityException("Bạn chưa đăng nhập");
+        }
+        User user = userRepository.findByEmailIgnoreCase(principalEmail.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
+        if (user.getRole() != User.Role.ADMIN) {
+            throw new SecurityException("Bạn không có quyền thực hiện thao tác này");
+        }
+    }
+
+    private void validateOrderAccess(StoreOrder order, String principalEmail) {
+        if (principalEmail == null || principalEmail.isBlank()) {
+            throw new SecurityException("Bạn chưa đăng nhập");
+        }
+        User user = userRepository.findByEmailIgnoreCase(principalEmail.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
+        if (user.getRole() == User.Role.ADMIN) {
+            return;
+        }
+        if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Bạn không có quyền xem đơn hàng này");
+        }
+    }
+
+    private record ResolvedOrderItem(
+            Product product,
+            int quantity,
+            BigDecimal unitPrice,
+            BigDecimal totalPrice,
+            ProductPriceSnapshot priceSnapshot
+    ) {
+    }
+
+    private record ResolvedOrderQuote(
+            List<ResolvedOrderItem> items,
+            Coupon coupon,
+            BigDecimal subtotalAmount,
+            BigDecimal shippingFee,
+            BigDecimal discountAmount,
+            BigDecimal totalAmount
+    ) {
     }
 
     private String toUtcIsoString(LocalDateTime dateTime) {

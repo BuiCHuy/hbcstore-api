@@ -61,9 +61,9 @@ public class AdminNotificationService {
 
     private void requireAdmin(String principalEmail) {
         User user = userRepository.findByEmailIgnoreCase(principalEmail)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
         if (user.getRole() != User.Role.ADMIN) {
-            throw new IllegalArgumentException("Admin access required");
+            throw new IllegalArgumentException("Cần quyền quản trị để thực hiện thao tác này");
         }
     }
 }

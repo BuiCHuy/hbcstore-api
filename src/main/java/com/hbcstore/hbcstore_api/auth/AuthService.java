@@ -48,7 +48,7 @@ public class AuthService {
                         true
                 );
             }
-            throw new IllegalArgumentException("Email already exists");
+            throw new IllegalArgumentException("Email đã tồn tại");
         }
 
         User user = new User();
@@ -73,17 +73,17 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(normalizeEmail(request.email()))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+                .orElseThrow(() -> new IllegalArgumentException("Email hoặc mật khẩu không đúng"));
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new IllegalArgumentException("Invalid email or password");
+            throw new IllegalArgumentException("Email hoặc mật khẩu không đúng");
         }
 
         if (user.getStatus() == User.UserStatus.BANNED) {
-            throw new IllegalArgumentException("Account is banned");
+            throw new IllegalArgumentException("Tài khoản đã bị khóa");
         }
         if (user.getStatus() == User.UserStatus.INACTIVE && user.getProvider() == User.AuthProvider.LOCAL) {
-            throw new IllegalArgumentException("Please verify your email before login");
+            throw new IllegalArgumentException("Vui lòng xác thực email trước khi đăng nhập");
         }
 
         return toAuthResponse(user);
@@ -97,7 +97,7 @@ public class AuthService {
                 .orElseGet(() -> createGoogleUser(profile));
 
         if (user.getStatus() == User.UserStatus.BANNED) {
-            throw new IllegalArgumentException("Account is banned");
+            throw new IllegalArgumentException("Tài khoản đã bị khóa");
         }
         return toAuthResponse(user);
     }

@@ -3,6 +3,7 @@ package com.hbcstore.hbcstore_api.user;
 import com.hbcstore.hbcstore_api.user.dto.UserAdminResponse;
 import com.hbcstore.hbcstore_api.user.dto.UserRequest;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,29 +26,29 @@ public class UserController {
     }
 
     @GetMapping
-    public List<UserAdminResponse> getAll() {
-        return userService.getAll();
+    public List<UserAdminResponse> getAll(Principal principal) {
+        return userService.getAll(principal == null ? null : principal.getName());
     }
 
     @GetMapping("/{id}")
-    public UserAdminResponse getById(@PathVariable Long id) {
-        return userService.getById(id);
+    public UserAdminResponse getById(@PathVariable Long id, Principal principal) {
+        return userService.getById(id, principal == null ? null : principal.getName());
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public UserAdminResponse create(@Valid @RequestBody UserRequest request) {
-        return userService.create(request);
+    public UserAdminResponse create(@Valid @RequestBody UserRequest request, Principal principal) {
+        return userService.create(request, principal == null ? null : principal.getName());
     }
 
     @PutMapping("/{id}")
-    public UserAdminResponse update(@PathVariable Long id, @Valid @RequestBody UserRequest request) {
-        return userService.update(id, request);
+    public UserAdminResponse update(@PathVariable Long id, @Valid @RequestBody UserRequest request, Principal principal) {
+        return userService.update(id, request, principal == null ? null : principal.getName());
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        userService.delete(id);
+    public void delete(@PathVariable Long id, Principal principal) {
+        userService.delete(id, principal == null ? null : principal.getName());
     }
 }

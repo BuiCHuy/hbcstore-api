@@ -2,6 +2,7 @@ package com.hbcstore.hbcstore_api.order;
 
 import com.hbcstore.hbcstore_api.order.dto.OrderResponse;
 import com.hbcstore.hbcstore_api.order.dto.CreateOrderRequest;
+import com.hbcstore.hbcstore_api.order.dto.OrderQuoteResponse;
 import com.hbcstore.hbcstore_api.order.dto.OrderStatusRequest;
 import jakarta.validation.Valid;
 import java.security.Principal;
@@ -26,8 +27,8 @@ public class OrderController {
     }
 
     @GetMapping
-    public List<OrderResponse> getAll() {
-        return orderService.getAll();
+    public List<OrderResponse> getAll(Principal principal) {
+        return orderService.getAll(principal == null ? null : principal.getName());
     }
 
     @GetMapping("/mine")
@@ -36,8 +37,13 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public OrderResponse getById(@PathVariable Long id) {
-        return orderService.getById(id);
+    public OrderResponse getById(@PathVariable Long id, Principal principal) {
+        return orderService.getById(id, principal == null ? null : principal.getName());
+    }
+
+    @PostMapping("/quote")
+    public OrderQuoteResponse quote(@Valid @RequestBody CreateOrderRequest request, Principal principal) {
+        return orderService.quote(request, principal == null ? null : principal.getName());
     }
 
     @PostMapping
@@ -52,8 +58,13 @@ public class OrderController {
         return orderService.create(request, principal == null ? null : principal.getName());
     }
 
+    @PatchMapping("/{id}/cancel")
+    public OrderResponse cancelMine(@PathVariable Long id, Principal principal) {
+        return orderService.cancelMine(id, principal == null ? null : principal.getName());
+    }
+
     @PatchMapping("/{id}/status")
-    public OrderResponse updateStatus(@PathVariable Long id, @Valid @RequestBody OrderStatusRequest request) {
-        return orderService.updateStatus(id, request);
+    public OrderResponse updateStatus(@PathVariable Long id, @Valid @RequestBody OrderStatusRequest request, Principal principal) {
+        return orderService.updateStatus(id, request, principal == null ? null : principal.getName());
     }
 }

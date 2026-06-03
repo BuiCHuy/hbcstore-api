@@ -69,13 +69,13 @@ public class EmailVerificationService {
     @Transactional
     public void verifyToken(String rawToken) {
         EmailVerificationToken token = tokenRepository.findByToken(rawToken)
-                .orElseThrow(() -> new IllegalArgumentException("Verification link is invalid"));
+                .orElseThrow(() -> new IllegalArgumentException("Liên kết xác thực không hợp lệ"));
 
         if (token.getUsedAt() != null) {
-            throw new IllegalArgumentException("Verification link was already used");
+            throw new IllegalArgumentException("Liên kết xác thực này đã được sử dụng");
         }
         if (token.isExpired()) {
-            throw new IllegalArgumentException("Verification link has expired");
+            throw new IllegalArgumentException("Liên kết xác thực đã hết hạn");
         }
 
         User user = token.getUser();
@@ -89,12 +89,12 @@ public class EmailVerificationService {
     @Transactional
     public void resend(String email) {
         User user = userRepository.findByEmail(email.trim().toLowerCase())
-                .orElseThrow(() -> new IllegalArgumentException("Email not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy email"));
         if (user.getProvider() != User.AuthProvider.LOCAL) {
-            throw new IllegalArgumentException("This account uses social login");
+            throw new IllegalArgumentException("Tài khoản này đang dùng đăng nhập mạng xã hội");
         }
         if (user.getStatus() == User.UserStatus.ACTIVE) {
-            throw new IllegalArgumentException("Email already verified");
+            throw new IllegalArgumentException("Email này đã được xác thực");
         }
         issueAndSend(user);
     }

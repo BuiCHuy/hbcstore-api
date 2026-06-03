@@ -41,7 +41,7 @@ public class ImageUploadService {
 
     public List<String> uploadImages(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
-            throw new IllegalArgumentException("No files provided");
+            throw new IllegalArgumentException("Chưa có tệp nào được chọn");
         }
 
         List<String> urls = new ArrayList<>();
@@ -57,7 +57,7 @@ public class ImageUploadService {
         }
 
         if (urls.isEmpty()) {
-            throw new IllegalArgumentException("No valid image files provided");
+            throw new IllegalArgumentException("Không có tệp ảnh hợp lệ nào được chọn");
         }
 
         return urls;
@@ -66,10 +66,10 @@ public class ImageUploadService {
     private void validateFile(MultipartFile file) {
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("Only image files are allowed");
+            throw new IllegalArgumentException("Chỉ được phép tải lên tệp ảnh");
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("Image exceeds 5MB limit");
+            throw new IllegalArgumentException("Ảnh vượt quá giới hạn 5MB");
         }
     }
 
@@ -93,9 +93,9 @@ public class ImageUploadService {
                     .build();
             s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));
         } catch (IOException exception) {
-            throw new IllegalStateException("Cannot read image file", exception);
+            throw new IllegalStateException("Không thể đọc tệp ảnh", exception);
         } catch (Exception exception) {
-            throw new IllegalStateException("Cannot upload image to S3", exception);
+            throw new IllegalStateException("Không thể tải ảnh lên hệ thống lưu trữ", exception);
         }
     }
 
@@ -107,4 +107,3 @@ public class ImageUploadService {
         return "https://" + bucket + ".s3.amazonaws.com/" + key;
     }
 }
-

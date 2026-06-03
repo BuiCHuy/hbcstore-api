@@ -26,7 +26,7 @@ public class CouponService {
     public CouponResponse create(CouponRequest request) {
         couponRepository.findByCodeIgnoreCase(request.code().trim())
                 .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Coupon code already exists");
+                    throw new IllegalArgumentException("Mã giảm giá đã tồn tại");
                 });
 
         Coupon coupon = new Coupon();
@@ -37,12 +37,12 @@ public class CouponService {
     @Transactional
     public CouponResponse update(Long id, CouponRequest request) {
         Coupon coupon = couponRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Coupon not found: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá: " + id));
 
         couponRepository.findByCodeIgnoreCase(request.code().trim())
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(id)) {
-                        throw new IllegalArgumentException("Coupon code already exists");
+                        throw new IllegalArgumentException("Mã giảm giá đã tồn tại");
                     }
                 });
 
@@ -53,7 +53,7 @@ public class CouponService {
     @Transactional
     public void delete(Long id) {
         Coupon coupon = couponRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Coupon not found: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá: " + id));
         coupon.setStatus(Coupon.CouponStatus.INACTIVE);
         couponRepository.save(coupon);
     }
@@ -70,7 +70,7 @@ public class CouponService {
                 : request.startDate().atStartOfDay();
         LocalDateTime endAt = request.endDate().atTime(23, 59, 59);
         if (endAt.isBefore(startAt)) {
-            throw new IllegalArgumentException("End date must be after start date");
+            throw new IllegalArgumentException("Ngày kết thúc phải sau ngày bắt đầu");
         }
 
         coupon.setStartDate(startAt);

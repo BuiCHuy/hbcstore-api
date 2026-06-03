@@ -108,9 +108,9 @@ public class ShippingService {
     @Transactional
     public ShippingSettingsResponse updateSettings(ShippingSettingsRequest request, String adminEmail) {
         User admin = userRepository.findByEmailIgnoreCase(adminEmail)
-                .orElseThrow(() -> new IllegalArgumentException("Admin account not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản quản trị"));
         if (admin.getRole() != User.Role.ADMIN) {
-            throw new IllegalArgumentException("Only admin can update shipping settings");
+            throw new IllegalArgumentException("Chỉ quản trị viên mới có thể cập nhật cài đặt phí ship");
         }
 
         ShippingSettings settings = getOrCreateSettings();

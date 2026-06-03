@@ -1,5 +1,6 @@
 package com.hbcstore.hbcstore_api.config;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,12 +25,19 @@ public class SecurityConfig {
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/uploads/**", "/uploads/**").permitAll()
-                        .requestMatchers("/api/products/**", "/api/categories/**", "/api/subcategories/**", "/api/brands/**", "/api/coupons/**", "/api/promotions/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/subcategories/**", "/api/brands/**", "/api/coupons/**", "/api/promotions/**").permitAll()
                         .requestMatchers("/api/shipping/**").permitAll()
                         .requestMatchers("/api/chat/**").permitAll()
                         .requestMatchers("/api/payments/payos/return").permitAll()
                         .requestMatchers("/api/payments/payos/webhook").permitAll()
-                        .requestMatchers("/api/orders/guest-checkout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/products/**", "/api/categories/**", "/api/subcategories/**", "/api/brands/**", "/api/coupons/**", "/api/promotions/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/products/**", "/api/categories/**", "/api/subcategories/**", "/api/brands/**", "/api/coupons/**", "/api/promotions/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/products/**", "/api/categories/**", "/api/subcategories/**", "/api/brands/**", "/api/coupons/**", "/api/promotions/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/orders").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

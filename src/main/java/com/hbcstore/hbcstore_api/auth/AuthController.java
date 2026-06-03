@@ -44,12 +44,12 @@ public class AuthController {
     @GetMapping("/verify-email")
     public RegisterResponse verifyEmail(@RequestParam String token) {
         authService.verifyEmail(token);
-        return new RegisterResponse("Email verified successfully. You can login now.", false);
+        return new RegisterResponse("Xác thực email thành công. Bạn có thể đăng nhập ngay bây giờ.", false);
     }
 
     @PostMapping("/resend-verification")
     public RegisterResponse resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerification(request.email());
-        return new RegisterResponse("Verification link was sent again.", true);
+        return new RegisterResponse("Liên kết xác thực đã được gửi lại.", true);
     }
 }

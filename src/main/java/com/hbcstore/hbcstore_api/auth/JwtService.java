@@ -61,7 +61,7 @@ public class JwtService {
     private String[] splitToken(String token) {
         String[] parts = token.split("\\.");
         if (parts.length != 3) {
-            throw new IllegalArgumentException("Invalid JWT token");
+            throw new IllegalArgumentException("Phiên đăng nhập không hợp lệ");
         }
         return parts;
     }

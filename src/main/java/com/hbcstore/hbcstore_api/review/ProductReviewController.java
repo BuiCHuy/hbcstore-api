@@ -2,7 +2,10 @@ package com.hbcstore.hbcstore_api.review;
 
 import com.hbcstore.hbcstore_api.review.dto.ProductReviewRequest;
 import com.hbcstore.hbcstore_api.review.dto.ProductReviewResponse;
+import com.hbcstore.hbcstore_api.review.dto.ReviewEligibilityResponse;
 import com.hbcstore.hbcstore_api.review.dto.ReviewReplyRequest;
+import com.hbcstore.hbcstore_api.review.dto.ReviewSettingsRequest;
+import com.hbcstore.hbcstore_api.review.dto.ReviewSettingsResponse;
 import com.hbcstore.hbcstore_api.review.dto.ReviewStatusRequest;
 import jakarta.validation.Valid;
 import java.security.Principal;
@@ -21,9 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class ProductReviewController {
     private final ProductReviewService reviewService;
+    private final ReviewSettingsService reviewSettingsService;
 
-    public ProductReviewController(ProductReviewService reviewService) {
+    public ProductReviewController(
+            ProductReviewService reviewService,
+            ReviewSettingsService reviewSettingsService
+    ) {
         this.reviewService = reviewService;
+        this.reviewSettingsService = reviewSettingsService;
     }
 
     @GetMapping("/products/{productId}/reviews")
@@ -37,17 +45,41 @@ public class ProductReviewController {
             Principal principal
     ) {
         if (principal == null) {
-            throw new IllegalArgumentException("Please login");
+            throw new IllegalArgumentException("Vui long dang nhap");
         }
         return reviewService.getMyReviewByProductId(productId, principal.getName());
+    }
+
+    @GetMapping("/reviews/eligibility/products/{productId}")
+    public ReviewEligibilityResponse getReviewEligibility(
+            @PathVariable Long productId,
+            Principal principal
+    ) {
+        return reviewService.getReviewEligibility(productId, principal == null ? null : principal.getName());
     }
 
     @GetMapping("/reviews")
     public List<ProductReviewResponse> getAllReviewsForAdmin(Principal principal) {
         if (principal == null) {
-            throw new IllegalArgumentException("Please login");
+            throw new IllegalArgumentException("Vui long dang nhap");
         }
         return reviewService.getAllForAdmin(principal.getName());
+    }
+
+    @GetMapping("/admin/review-settings")
+    public ReviewSettingsResponse getReviewSettings() {
+        return reviewSettingsService.getSettings();
+    }
+
+    @PatchMapping("/admin/review-settings")
+    public ReviewSettingsResponse updateReviewSettings(
+            @Valid @RequestBody ReviewSettingsRequest request,
+            Principal principal
+    ) {
+        if (principal == null) {
+            throw new IllegalArgumentException("Vui long dang nhap");
+        }
+        return reviewSettingsService.updateSettings(request, principal.getName());
     }
 
     @PostMapping("/reviews/products/{productId}")
@@ -58,7 +90,7 @@ public class ProductReviewController {
             Principal principal
     ) {
         if (principal == null) {
-            throw new IllegalArgumentException("Please login to submit review");
+            throw new IllegalArgumentException("Vui long dang nhap de gui danh gia");
         }
         return reviewService.upsertMyReview(productId, principal.getName(), request);
     }
@@ -70,7 +102,7 @@ public class ProductReviewController {
             Principal principal
     ) {
         if (principal == null) {
-            throw new IllegalArgumentException("Please login");
+            throw new IllegalArgumentException("Vui long dang nhap");
         }
         return reviewService.updateStatus(reviewId, request.status(), principal.getName());
     }
@@ -82,7 +114,7 @@ public class ProductReviewController {
             Principal principal
     ) {
         if (principal == null) {
-            throw new IllegalArgumentException("Please login");
+            throw new IllegalArgumentException("Vui long dang nhap");
         }
         return reviewService.replyToReview(reviewId, request.reply(), principal.getName());
     }

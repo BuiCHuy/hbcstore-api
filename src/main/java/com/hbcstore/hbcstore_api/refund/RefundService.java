@@ -31,16 +31,16 @@ public class RefundService {
     public RefundResponse create(String principalEmail, CreateRefundRequest request) {
         User user = findUser(principalEmail);
         StoreOrder order = orderRepository.findById(request.orderId())
-                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng"));
 
         if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
-            throw new IllegalArgumentException("You can only request refund for your own order");
+            throw new IllegalArgumentException("Bạn chỉ có thể yêu cầu hoàn tiền cho đơn hàng của chính mình");
         }
         if (order.getStatus() != StoreOrder.OrderStatus.DELIVERED) {
-            throw new IllegalArgumentException("Only delivered orders can be refunded");
+            throw new IllegalArgumentException("Chỉ đơn hàng đã giao mới được yêu cầu hoàn tiền");
         }
         if (order.getPaymentStatus() != StoreOrder.PaymentStatus.PAID) {
-            throw new IllegalArgumentException("Only paid orders can be refunded");
+            throw new IllegalArgumentException("Chỉ đơn hàng đã thanh toán mới được yêu cầu hoàn tiền");
         }
 
         boolean hasOpenRefund = refundRequestRepository.existsByOrderIdAndStatusIn(
@@ -48,7 +48,7 @@ public class RefundService {
                 List.of(RefundRequest.RefundStatus.PENDING, RefundRequest.RefundStatus.APPROVED)
         );
         if (hasOpenRefund) {
-            throw new IllegalArgumentException("A refund request for this order is already being processed");
+            throw new IllegalArgumentException("Đơn hàng này đã có yêu cầu hoàn tiền đang được xử lý");
         }
 
         RefundRequest refund = new RefundRequest();
@@ -72,7 +72,7 @@ public class RefundService {
     public List<RefundResponse> getAllAdmin(String principalEmail) {
         User admin = findUser(principalEmail);
         if (admin.getRole() != User.Role.ADMIN) {
-            throw new IllegalArgumentException("Only admin can access refund management");
+            throw new IllegalArgumentException("Chỉ quản trị viên mới có thể quản lý hoàn tiền");
         }
         return refundRequestRepository.findAll().stream()
                 .map(RefundResponse::from)
@@ -83,11 +83,11 @@ public class RefundService {
     public RefundResponse updateStatus(Long id, String principalEmail, RefundStatusUpdateRequest request) {
         User admin = findUser(principalEmail);
         if (admin.getRole() != User.Role.ADMIN) {
-            throw new IllegalArgumentException("Only admin can update refund status");
+            throw new IllegalArgumentException("Chỉ quản trị viên mới có thể cập nhật trạng thái hoàn tiền");
         }
 
         RefundRequest refund = refundRequestRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Refund request not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy yêu cầu hoàn tiền"));
 
         validateTransition(refund.getStatus(), request.status());
         refund.setStatus(request.status());
@@ -106,10 +106,10 @@ public class RefundService {
 
     private User findUser(String email) {
         if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("Unauthenticated request");
+            throw new IllegalArgumentException("Yêu cầu chưa đăng nhập");
         }
         return userRepository.findByEmail(email.trim())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
     }
 
     private void validateTransition(RefundRequest.RefundStatus current, RefundRequest.RefundStatus next) {
@@ -120,8 +120,7 @@ public class RefundService {
             case REJECTED, COMPLETED -> false;
         };
         if (!valid) {
-            throw new IllegalArgumentException("Invalid refund status transition: " + current + " -> " + next);
+            throw new IllegalArgumentException("Chuyển trạng thái hoàn tiền không hợp lệ: " + current + " -> " + next);
         }
     }
 }
-

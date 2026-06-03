@@ -42,7 +42,7 @@ public class CartService {
         User user = getActiveUser(email);
         Cart cart = cartRepository.findByUser(user).orElseGet(() -> createEmptyCart(user));
         Product product = productRepository.findById(request.productId())
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm"));
 
         CartItem item = cartItemRepository.findByCartAndProduct(cart, product)
                 .orElseGet(() -> {
@@ -63,7 +63,7 @@ public class CartService {
         User user = getActiveUser(email);
         Cart cart = cartRepository.findByUser(user).orElseGet(() -> createEmptyCart(user));
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm"));
         cartItemRepository.findByCartAndProduct(cart, product).ifPresent(cartItemRepository::delete);
         return toResponse(cartRepository.findById(cart.getId()).orElse(cart));
     }
@@ -79,7 +79,7 @@ public class CartService {
     private User getActiveUser(String email) {
         return userRepository.findByEmail(email)
                 .filter(u -> u.getStatus() == User.UserStatus.ACTIVE)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
     }
 
     private Cart createEmptyCart(User user) {

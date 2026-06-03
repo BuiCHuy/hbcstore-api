@@ -3,6 +3,8 @@ package com.hbcstore.hbcstore_api.catalog;
 import com.hbcstore.hbcstore_api.catalog.dto.ProductFacetsResponse;
 import com.hbcstore.hbcstore_api.catalog.dto.ProductRequest;
 import com.hbcstore.hbcstore_api.catalog.dto.ProductResponse;
+import com.hbcstore.hbcstore_api.pricing.ProductPriceSnapshot;
+import com.hbcstore.hbcstore_api.pricing.PricingService;
 import com.hbcstore.hbcstore_api.review.ProductReview;
 import com.hbcstore.hbcstore_api.review.ProductReviewRepository;
 import java.util.ArrayList;
@@ -25,19 +27,22 @@ public class ProductService {
     private final SubcategoryRepository subcategoryRepository;
     private final BrandRepository brandRepository;
     private final ProductReviewRepository reviewRepository;
+    private final PricingService pricingService;
 
     public ProductService(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             SubcategoryRepository subcategoryRepository,
             BrandRepository brandRepository,
-            ProductReviewRepository reviewRepository
+            ProductReviewRepository reviewRepository,
+            PricingService pricingService
     ) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.brandRepository = brandRepository;
         this.reviewRepository = reviewRepository;
+        this.pricingService = pricingService;
     }
 
     @Transactional(readOnly = true)
@@ -181,7 +186,16 @@ public class ProductService {
                 ProductReview.ReviewStatus.APPROVED
         );
         double rating = avg == null ? 0.0 : Math.round(avg * 10.0) / 10.0;
-        return ProductResponse.from(product, rating, reviewCount);
+        ProductPriceSnapshot snapshot = pricingService.resolveProductPrice(product, 1);
+        return ProductResponse.from(
+                product,
+                rating,
+                reviewCount,
+                snapshot.unitPrice(),
+                snapshot.originalPrice(),
+                snapshot.discountPercent(),
+                snapshot.promotionId()
+        );
     }
 
     @Transactional
@@ -193,12 +207,12 @@ public class ProductService {
 
     private Product findProduct(Long id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm: " + id));
     }
 
     private Category findCategory(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục: " + id));
     }
 
     private Brand findBrand(Long id) {
