@@ -2,8 +2,8 @@ package com.hbcstore.hbcstore_api.notification.dto;
 
 import java.util.List;
 
-public record AdminNotificationListResponse(
+public record NotificationListResponse(
         long unreadCount,
-        List<AdminNotificationResponse> notifications
+        List<NotificationResponse> notifications
 ) {
 }

@@ -8,21 +8,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/admin/notifications")
-public class AdminNotificationController {
+@RequestMapping("/api/notifications")
+public class UserNotificationController {
     private final NotificationService notificationService;
 
-    public AdminNotificationController(NotificationService notificationService) {
+    public UserNotificationController(NotificationService notificationService) {
         this.notificationService = notificationService;
     }
 
     @GetMapping
-    public NotificationListResponse getLatest(Principal principal) {
-        return notificationService.getLatestAdmin(principal.getName());
+    public NotificationListResponse getLatestMine(Principal principal) {
+        return notificationService.getLatestMine(principal.getName());
     }
 
     @PatchMapping("/read-all")
     public NotificationListResponse markAllAsRead(Principal principal) {
-        return notificationService.markAllAdminAsRead(principal.getName());
+        return notificationService.markAllMineAsRead(principal.getName());
     }
 }

@@ -1,6 +1,8 @@
 package com.hbcstore.hbcstore_api.notification;
 
 import com.hbcstore.hbcstore_api.order.StoreOrder;
+import com.hbcstore.hbcstore_api.refund.RefundRequest;
+import com.hbcstore.hbcstore_api.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,15 +24,19 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "admin_notifications")
-public class AdminNotification {
+@Table(name = "notifications")
+public class Notification {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, length = 40)
     private NotificationType type;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private TargetType targetType;
 
     @Column(nullable = false, length = 200)
     private String title;
@@ -38,9 +44,20 @@ public class AdminNotification {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
+    @Column(length = 255)
+    private String link;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recipient_user_id")
+    private User recipient;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
     private StoreOrder order;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "refund_request_id")
+    private RefundRequest refundRequest;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -54,6 +71,14 @@ public class AdminNotification {
     }
 
     public enum NotificationType {
-        NEW_ORDER
+        NEW_ORDER,
+        REFUND_REQUEST_CREATED,
+        ORDER_STATUS_UPDATED,
+        REFUND_STATUS_UPDATED
+    }
+
+    public enum TargetType {
+        ADMIN,
+        USER
     }
 }

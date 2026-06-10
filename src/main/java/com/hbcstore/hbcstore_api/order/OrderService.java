@@ -4,7 +4,7 @@ import com.hbcstore.hbcstore_api.catalog.Product;
 import com.hbcstore.hbcstore_api.catalog.ProductRepository;
 import com.hbcstore.hbcstore_api.coupon.CouponRepository;
 import com.hbcstore.hbcstore_api.coupon.Coupon;
-import com.hbcstore.hbcstore_api.notification.AdminNotificationService;
+import com.hbcstore.hbcstore_api.notification.NotificationService;
 import com.hbcstore.hbcstore_api.pricing.ProductPriceSnapshot;
 import com.hbcstore.hbcstore_api.pricing.PricingService;
 import com.hbcstore.hbcstore_api.promotion.PromotionProduct;
@@ -40,7 +40,7 @@ public class OrderService {
     private final CouponRepository couponRepository;
     private final PromotionProductRepository promotionProductRepository;
     private final ShippingService shippingService;
-    private final AdminNotificationService adminNotificationService;
+    private final NotificationService notificationService;
     private final PricingService pricingService;
 
     public OrderService(
@@ -51,7 +51,7 @@ public class OrderService {
             CouponRepository couponRepository,
             PromotionProductRepository promotionProductRepository,
             ShippingService shippingService,
-            AdminNotificationService adminNotificationService,
+            NotificationService notificationService,
             PricingService pricingService
     ) {
         this.orderRepository = orderRepository;
@@ -61,7 +61,7 @@ public class OrderService {
         this.couponRepository = couponRepository;
         this.promotionProductRepository = promotionProductRepository;
         this.shippingService = shippingService;
-        this.adminNotificationService = adminNotificationService;
+        this.notificationService = notificationService;
         this.pricingService = pricingService;
     }
 
@@ -122,7 +122,7 @@ public class OrderService {
 
         StoreOrder savedOrder = orderRepository.save(order);
         quote.items().forEach(item -> saveOrderDetail(savedOrder, item));
-        adminNotificationService.createNewOrderNotification(savedOrder);
+        notificationService.createNewOrderNotification(savedOrder);
         return toResponse(savedOrder);
     }
 
@@ -192,6 +192,7 @@ public class OrderService {
         }
 
         StoreOrder saved = orderRepository.save(order);
+        notificationService.createOrderStatusUpdatedNotification(saved);
         return toResponse(saved);
     }
 
@@ -210,7 +211,9 @@ public class OrderService {
         }
         rollbackConsumptionOnCancel(order);
         order.setStatus(StoreOrder.OrderStatus.CANCELLED);
-        return toResponse(orderRepository.save(order));
+        StoreOrder saved = orderRepository.save(order);
+        notificationService.createOrderStatusUpdatedNotification(saved);
+        return toResponse(saved);
     }
 
     private void rollbackConsumptionOnCancel(StoreOrder order) {

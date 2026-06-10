@@ -1,5 +1,6 @@
 package com.hbcstore.hbcstore_api.refund;
 
+import com.hbcstore.hbcstore_api.notification.NotificationService;
 import com.hbcstore.hbcstore_api.order.StoreOrder;
 import com.hbcstore.hbcstore_api.order.StoreOrderRepository;
 import com.hbcstore.hbcstore_api.refund.dto.CreateRefundRequest;
@@ -16,15 +17,18 @@ public class RefundService {
     private final RefundRequestRepository refundRequestRepository;
     private final StoreOrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public RefundService(
             RefundRequestRepository refundRequestRepository,
             StoreOrderRepository orderRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            NotificationService notificationService
     ) {
         this.refundRequestRepository = refundRequestRepository;
         this.orderRepository = orderRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -58,7 +62,9 @@ public class RefundService {
         refund.setRefundAmount(order.getTotalAmount());
         refund.setStatus(RefundRequest.RefundStatus.PENDING);
 
-        return RefundResponse.from(refundRequestRepository.save(refund));
+        RefundRequest saved = refundRequestRepository.save(refund);
+        notificationService.createRefundRequestNotification(saved);
+        return RefundResponse.from(saved);
     }
 
     public List<RefundResponse> getMine(String principalEmail) {
@@ -101,7 +107,9 @@ public class RefundService {
             orderRepository.save(order);
         }
 
-        return RefundResponse.from(refundRequestRepository.save(refund));
+        RefundRequest saved = refundRequestRepository.save(refund);
+        notificationService.createRefundStatusUpdatedNotification(saved);
+        return RefundResponse.from(saved);
     }
 
     private User findUser(String email) {
