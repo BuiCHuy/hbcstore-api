@@ -1,4 +1,4 @@
-package com.hbcstore.hbcstore_api.payment.payos;
+﻿package com.hbcstore.hbcstore_api.payment.payos;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -178,35 +178,64 @@ public class PayOSPaymentService {
             }
         }
         if (orderId == null) {
-            return Map.of("code", "01", "message", "Không tìm thấy đơn hàng");
+            return Map.of(
+                    "code", "01",
+                    "message", "Không tìm thấy đơn hàng",
+                    "paymentStatus", "NOT_FOUND",
+                    "paid", "false"
+            );
         }
 
-        // Source of truth: query PayOS link status when payment link id is available.
         if (paymentLinkId != null && !paymentLinkId.isBlank()) {
             String remoteStatus = fetchPaymentLinkStatusById(paymentLinkId.trim());
             if ("PAID".equals(remoteStatus) || "SUCCESS".equals(remoteStatus)) {
                 paid = true;
+                canceledOrFailed = false;
+                status = remoteStatus;
             } else if ("CANCELLED".equals(remoteStatus) || "CANCELED".equals(remoteStatus) || "FAILED".equals(remoteStatus) || "EXPIRED".equals(remoteStatus)) {
                 paid = false;
+                canceledOrFailed = true;
+                status = remoteStatus;
+            } else if (status.isBlank()) {
+                status = remoteStatus;
             }
-        } else if ("00".equals(code) && status.isBlank()) {
-            // Fall back for legacy return shape where only "code=00" is present.
-            paid = true;
         }
 
         StoreOrder order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
-            return Map.of("code", "01", "message", "Không tìm thấy đơn hàng");
+            return Map.of(
+                    "code", "01",
+                    "message", "Không tìm thấy đơn hàng",
+                    "paymentStatus", "NOT_FOUND",
+                    "paid", "false"
+            );
         }
 
         if (paid) {
             order.setPaymentStatus(StoreOrder.PaymentStatus.PAID);
             order.setPaymentExpiredAt(null);
             orderRepository.save(order);
-            return Map.of("code", "00", "message", "Thanh toán đã được xác nhận");
+            return Map.of(
+                    "code", "00",
+                    "message", "Thanh toán đã được xác nhận",
+                    "paymentStatus", "PAID",
+                    "paid", "true"
+            );
         }
 
-        return Map.of("code", "00", "message", "Đã nhận kết quả thanh toán");
+        String paymentStatus = canceledOrFailed
+                ? (status.isBlank() ? "CANCELLED" : status)
+                : ("00".equals(code) && !status.isBlank() ? status : "PENDING");
+        String message = canceledOrFailed
+                ? "Bạn đã hủy hoặc chưa hoàn tất thanh toán"
+                : "Thanh toán chưa hoàn tất";
+
+        return Map.of(
+                "code", "00",
+                "message", message,
+                "paymentStatus", paymentStatus,
+                "paid", "false"
+        );
     }
 
     public Map<String, Object> getSettings() {
@@ -488,3 +517,4 @@ public class PayOSPaymentService {
         return amount.setScale(0, java.math.RoundingMode.HALF_UP).longValue();
     }
 }
+
