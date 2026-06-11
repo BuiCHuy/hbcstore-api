@@ -168,7 +168,7 @@ public class ChatService {
                     List.of()
             );
         }
-        SearchIntent baseIntent = mergeIntent(parseIntent(message, rawQuery), previous);
+        SearchIntent baseIntent = mergeIntent(parseIntent(message, rawQuery), rawQuery, previous);
 
         List<ProductResponse> dbFirstCandidates = productService.getAll(rawQuery).stream()
                 .filter(item -> item.status() == Product.ProductStatus.ACTIVE)
@@ -193,7 +193,7 @@ public class ChatService {
             interpretedQuery = interpreted.normalizedQuery() == null || interpreted.normalizedQuery().isBlank()
                     ? rawQuery
                     : interpreted.normalizedQuery();
-            intent = mergeIntent(parseIntent(message, interpretedQuery), previous);
+            intent = mergeIntent(parseIntent(message, interpretedQuery), interpretedQuery, previous);
 
             List<ProductResponse> productsForAi = productService.getAll("").stream()
                     .filter(item -> item.status() == Product.ProductStatus.ACTIVE)
@@ -292,8 +292,11 @@ public class ChatService {
         return new SearchIntent(keyword, brand, category, subcategory, minPrice, maxPrice, inStockOnly, sort, theme);
     }
 
-    private SearchIntent mergeIntent(SearchIntent current, SessionContext previous) {
+    private SearchIntent mergeIntent(SearchIntent current, String currentQuery, SessionContext previous) {
         if (previous == null) return current;
+        if (!shouldInheritContext(current, currentQuery, previous.intent)) {
+            return current;
+        }
         String keyword = choose(current.keyword(), previous.intent.keyword());
         String brand = choose(current.brand(), previous.intent.brand());
         String category = choose(current.category(), previous.intent.category());
@@ -304,6 +307,58 @@ public class ChatService {
         String sort = current.sort() != null ? current.sort() : previous.intent.sort();
         String theme = current.theme() != null ? current.theme() : previous.intent.theme();
         return new SearchIntent(keyword, brand, category, subcategory, minPrice, maxPrice, inStock, sort, theme);
+    }
+
+    private boolean shouldInheritContext(SearchIntent current, String currentQuery, SearchIntent previous) {
+        if (previous == null) {
+            return false;
+        }
+        if (hasExplicitCatalogIntent(current)) {
+            return false;
+        }
+
+        String normalizedQuery = normalize(currentQuery);
+        if (normalizedQuery.isBlank()) {
+            return true;
+        }
+
+        if (containsFollowUpHint(normalizedQuery)) {
+            return true;
+        }
+
+        boolean hasOnlyPriceChange = current.minPrice() != null || current.maxPrice() != null || current.sort() != null;
+        boolean hasStockChangeOnly = current.inStockOnly();
+        return hasOnlyPriceChange || hasStockChangeOnly;
+    }
+
+    private boolean hasExplicitCatalogIntent(SearchIntent intent) {
+        return intent.brand() != null
+                || intent.category() != null
+                || intent.subcategory() != null
+                || intent.theme() != null;
+    }
+
+    private boolean containsFollowUpHint(String normalizedQuery) {
+        return normalizedQuery.contains("con ")
+                || normalizedQuery.contains("còn ")
+                || normalizedQuery.contains("them ")
+                || normalizedQuery.contains("thêm ")
+                || normalizedQuery.contains("khac")
+                || normalizedQuery.contains("khác")
+                || normalizedQuery.contains("loai do")
+                || normalizedQuery.contains("loại đó")
+                || normalizedQuery.contains("mau do")
+                || normalizedQuery.contains("mẫu đó")
+                || normalizedQuery.contains("tam nay")
+                || normalizedQuery.contains("tầm này")
+                || normalizedQuery.contains("gia nay")
+                || normalizedQuery.contains("giá này")
+                || normalizedQuery.contains("re hon")
+                || normalizedQuery.contains("rẻ hơn")
+                || normalizedQuery.contains("dat hon")
+                || normalizedQuery.contains("đắt hơn")
+                || normalizedQuery.contains("the nao")
+                || normalizedQuery.contains("thế nào");
     }
 
     private List<ProductResponse> applyFilters(List<ProductResponse> products, SearchIntent intent) {
