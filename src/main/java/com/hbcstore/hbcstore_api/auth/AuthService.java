@@ -20,19 +20,22 @@ public class AuthService {
     private final JwtService jwtService;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final EmailVerificationService emailVerificationService;
+    private final PasswordResetService passwordResetService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             GoogleTokenVerifier googleTokenVerifier,
-            EmailVerificationService emailVerificationService
+            EmailVerificationService emailVerificationService,
+            PasswordResetService passwordResetService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.googleTokenVerifier = googleTokenVerifier;
         this.emailVerificationService = emailVerificationService;
+        this.passwordResetService = passwordResetService;
     }
 
     @Transactional
@@ -136,5 +139,13 @@ public class AuthService {
 
     public void resendVerification(String email) {
         emailVerificationService.resend(email);
+    }
+
+    public String forgotPassword(String email) {
+        return passwordResetService.requestReset(email);
+    }
+
+    public void resetPassword(String token, String password) {
+        passwordResetService.resetPassword(token, password);
     }
 }

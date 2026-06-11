@@ -1,20 +1,23 @@
 package com.hbcstore.hbcstore_api.auth;
 
+import com.hbcstore.hbcstore_api.auth.dto.AuthMessageResponse;
 import com.hbcstore.hbcstore_api.auth.dto.AuthResponse;
+import com.hbcstore.hbcstore_api.auth.dto.ForgotPasswordRequest;
 import com.hbcstore.hbcstore_api.auth.dto.GoogleLoginRequest;
 import com.hbcstore.hbcstore_api.auth.dto.LoginRequest;
 import com.hbcstore.hbcstore_api.auth.dto.RegisterRequest;
 import com.hbcstore.hbcstore_api.auth.dto.RegisterResponse;
 import com.hbcstore.hbcstore_api.auth.dto.ResendVerificationRequest;
+import com.hbcstore.hbcstore_api.auth.dto.ResetPasswordRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -51,5 +54,16 @@ public class AuthController {
     public RegisterResponse resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerification(request.email());
         return new RegisterResponse("Liên kết xác thực đã được gửi lại.", true);
+    }
+
+    @PostMapping("/forgot-password")
+    public AuthMessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return new AuthMessageResponse(authService.forgotPassword(request.email()));
+    }
+
+    @PostMapping("/reset-password")
+    public AuthMessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.password());
+        return new AuthMessageResponse("Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.");
     }
 }
