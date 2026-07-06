@@ -1,0 +1,440 @@
+{
+    "ChatController": [
+        {
+            "method": "POST",
+            "path": "/api/chat",
+            "action": "chat"
+        }
+    ],
+    "AuthController": [
+        {
+            "method": "POST",
+            "path": "/api/auth/register",
+            "action": "register"
+        },
+        {
+            "method": "POST",
+            "path": "/api/auth/login",
+            "action": "login"
+        },
+        {
+            "method": "POST",
+            "path": "/api/auth/google",
+            "action": "loginWithGoogle"
+        },
+        {
+            "method": "GET",
+            "path": "/api/auth/verify-email",
+            "action": "verifyEmail"
+        },
+        {
+            "method": "POST",
+            "path": "/api/auth/resend-verification",
+            "action": "resendVerification"
+        },
+        {
+            "method": "POST",
+            "path": "/api/auth/forgot-password",
+            "action": "forgotPassword"
+        },
+        {
+            "method": "POST",
+            "path": "/api/auth/reset-password",
+            "action": "resetPassword"
+        }
+    ],
+    "CartController": [
+        {
+            "method": "GET",
+            "path": "/api/cart",
+            "action": "getMyCart"
+        },
+        {
+            "method": "POST",
+            "path": "/api/cart/items",
+            "action": "upsertItem"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/cart/items/{productId}",
+            "action": "removeItem"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/cart",
+            "action": "clear"
+        }
+    ],
+    "BrandController": [
+        {
+            "method": "GET",
+            "path": "/api/brands",
+            "action": "getAll"
+        },
+        {
+            "method": "GET",
+            "path": "/api/brands/{id}",
+            "action": "getById"
+        },
+        {
+            "method": "POST",
+            "path": "/api/brands",
+            "action": "create"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/brands/{id}",
+            "action": "update"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/brands/{id}",
+            "action": "delete"
+        }
+    ],
+    "CategoryController": [
+        {
+            "method": "GET",
+            "path": "/api/categories",
+            "action": "getAll"
+        },
+        {
+            "method": "GET",
+            "path": "/api/categories/{id}",
+            "action": "getById"
+        },
+        {
+            "method": "POST",
+            "path": "/api/categories",
+            "action": "create"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/categories/{id}",
+            "action": "update"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/categories/{id}",
+            "action": "delete"
+        }
+    ],
+    "ProductController": [
+        {
+            "method": "GET",
+            "path": "/api/products",
+            "action": "getAll"
+        },
+        {
+            "method": "GET",
+            "path": "/api/products/facets",
+            "action": "getFacets"
+        },
+        {
+            "method": "GET",
+            "path": "/api/products/{id}",
+            "action": "getById"
+        },
+        {
+            "method": "POST",
+            "path": "/api/products",
+            "action": "create"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/products/{id}",
+            "action": "update"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/products/{id}",
+            "action": "delete"
+        }
+    ],
+    "SubcategoryController": [
+        {
+            "method": "GET",
+            "path": "/api/subcategories",
+            "action": "getAll"
+        },
+        {
+            "method": "POST",
+            "path": "/api/subcategories",
+            "action": "create"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/subcategories/{id}",
+            "action": "update"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/subcategories/{id}",
+            "action": "delete"
+        }
+    ],
+    "CouponController": [
+        {
+            "method": "GET",
+            "path": "/api/coupons",
+            "action": "getAll"
+        },
+        {
+            "method": "POST",
+            "path": "/api/coupons",
+            "action": "create"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/coupons/{id}",
+            "action": "update"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/coupons/{id}",
+            "action": "delete"
+        }
+    ],
+    "HealthController": [
+        {
+            "method": "GET",
+            "path": "/api/health",
+            "action": "health"
+        }
+    ],
+    "AdminNotificationController": [
+        {
+            "method": "GET",
+            "path": "/api/admin/notifications",
+            "action": "getLatest"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/admin/notifications/read-all",
+            "action": "markAllAsRead"
+        }
+    ],
+    "UserNotificationController": [
+        {
+            "method": "GET",
+            "path": "/api/notifications",
+            "action": "getLatestMine"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/notifications/read-all",
+            "action": "markAllAsRead"
+        }
+    ],
+    "OrderController": [
+        {
+            "method": "GET",
+            "path": "/api/orders",
+            "action": "getAll"
+        },
+        {
+            "method": "GET",
+            "path": "/api/orders/mine",
+            "action": "getMine"
+        },
+        {
+            "method": "GET",
+            "path": "/api/orders/{id}",
+            "action": "getById"
+        },
+        {
+            "method": "POST",
+            "path": "/api/orders/quote",
+            "action": "quote"
+        },
+        {
+            "method": "POST",
+            "path": "/api/orders",
+            "action": "create"
+        },
+        {
+            "method": "POST",
+            "path": "/api/orders/guest-checkout",
+            "action": "guestCheckout"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/orders/{id}/cancel",
+            "action": "cancelMine"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/orders/{id}/status",
+            "action": "updateStatus"
+        }
+    ],
+    "PayOSPaymentController": [
+        {
+            "method": "POST",
+            "path": "/api/payments/payos/create",
+            "action": "createPayment"
+        },
+        {
+            "method": "GET",
+            "path": "/api/payments/payos/return",
+            "action": "paymentReturn"
+        },
+        {
+            "method": "POST",
+            "path": "/api/payments/payos/webhook",
+            "action": "webhook"
+        },
+        {
+            "method": "GET",
+            "path": "/api/payments/payos/settings",
+            "action": "settings"
+        }
+    ],
+    "PromotionController": [
+        {
+            "method": "GET",
+            "path": "/api/promotions",
+            "action": "getAll"
+        },
+        {
+            "method": "GET",
+            "path": "/api/promotions/{id}",
+            "action": "getById"
+        },
+        {
+            "method": "POST",
+            "path": "/api/promotions",
+            "action": "create"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/promotions/{id}",
+            "action": "update"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/promotions/{id}",
+            "action": "delete"
+        }
+    ],
+    "RefundController": [
+        {
+            "method": "POST",
+            "path": "/api/refunds",
+            "action": "create"
+        },
+        {
+            "method": "GET",
+            "path": "/api/refunds/mine",
+            "action": "getMine"
+        },
+        {
+            "method": "GET",
+            "path": "/api/refunds",
+            "action": "getAll"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/refunds/{id}/status",
+            "action": "updateStatus"
+        }
+    ],
+    "ProductReviewController": [
+        {
+            "method": "GET",
+            "path": "/api/products/{productId}/reviews",
+            "action": "getApprovedReviews"
+        },
+        {
+            "method": "GET",
+            "path": "/api/reviews/my/products/{productId}",
+            "action": "getMyReviewByProduct"
+        },
+        {
+            "method": "GET",
+            "path": "/api/reviews/eligibility/products/{productId}",
+            "action": "getReviewEligibility"
+        },
+        {
+            "method": "GET",
+            "path": "/api/reviews",
+            "action": "getAllReviewsForAdmin"
+        },
+        {
+            "method": "GET",
+            "path": "/api/admin/review-settings",
+            "action": "getReviewSettings"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/admin/review-settings",
+            "action": "updateReviewSettings"
+        },
+        {
+            "method": "POST",
+            "path": "/api/reviews/products/{productId}",
+            "action": "createOrUpdateMyReview"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/reviews/{reviewId}/status",
+            "action": "updateStatus"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/reviews/{reviewId}/reply",
+            "action": "replyToReview"
+        }
+    ],
+    "ShippingController": [
+        {
+            "method": "GET",
+            "path": "/api/shipping/settings",
+            "action": "getSettings"
+        },
+        {
+            "method": "POST",
+            "path": "/api/shipping/quote",
+            "action": "quote"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/admin/shipping/settings",
+            "action": "updateSettings"
+        }
+    ],
+    "UploadController": [
+        {
+            "method": "POST",
+            "path": "/api/uploads/images",
+            "action": "uploadImages"
+        }
+    ],
+    "UserController": [
+        {
+            "method": "GET",
+            "path": "/api/users",
+            "action": "getAll"
+        },
+        {
+            "method": "GET",
+            "path": "/api/users/{id}",
+            "action": "getById"
+        },
+        {
+            "method": "POST",
+            "path": "/api/users",
+            "action": "create"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/users/{id}",
+            "action": "update"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/users/{id}",
+            "action": "delete"
+        }
+    ]
+}

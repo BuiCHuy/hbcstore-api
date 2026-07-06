@@ -219,6 +219,17 @@ public class OrderService {
     private void rollbackConsumptionOnCancel(StoreOrder order) {
         rollbackCouponUsage(order.getCoupon());
         rollbackPromotionSoldCount(order);
+        rollbackProductStock(order);
+    }
+
+    private void rollbackProductStock(StoreOrder order) {
+        List<OrderDetail> details = orderDetailRepository.findByOrderId(order.getId());
+        for (OrderDetail detail : details) {
+            Product product = detail.getProduct();
+            int currentStock = product.getStockQuantity() == null ? 0 : product.getStockQuantity();
+            product.setStockQuantity(currentStock + detail.getQuantity());
+            productRepository.save(product);
+        }
     }
 
     private void rollbackCouponUsage(Coupon coupon) {
@@ -298,6 +309,11 @@ public class OrderService {
 
     private void saveOrderDetail(StoreOrder order, ResolvedOrderItem item) {
         Product product = item.product();
+        
+        int currentStock = product.getStockQuantity() == null ? 0 : product.getStockQuantity();
+        product.setStockQuantity(currentStock - item.quantity());
+        productRepository.save(product);
+
         if (item.priceSnapshot().usesPromotionStock()) {
             consumePromotionStock(product.getId(), item.quantity());
         }

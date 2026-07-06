@@ -1,0 +1,249 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 5
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+class EmailVerificationToken {
+  +id: Long
+  +token: String
+  +user: User
+  +expiresAt: LocalDateTime
+  +usedAt: LocalDateTime
+  +createdAt: LocalDateTime
+}
+
+class PasswordResetToken {
+  +id: Long
+  +user: User
+  +token: String
+  +expiresAt: LocalDateTime
+  +usedAt: LocalDateTime
+  +createdAt: LocalDateTime
+}
+
+class Cart {
+  +id: Long
+  +user: User
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class CartItem {
+  +id: Long
+  +cart: Cart
+  +product: Product
+  +quantity: Integer
+  +unitPriceSnapshot: BigDecimal
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class Brand {
+  +id: Long
+  +name: String
+  +country: String
+  +description: String
+  +logoUrl: String
+}
+
+class Category {
+  +id: Long
+  +name: String
+  +description: String
+  +iconUrl: String
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class Product {
+  +id: Long
+  +name: String
+  +price: BigDecimal
+  +thumbnailUrl: String
+  +description: String
+  +category: Category
+  +subcategory: Subcategory
+  +brand: Brand
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class ProductAttribute {
+  +id: Long
+  +product: Product
+  +attributeName: String
+  +attributeValue: String
+}
+
+class ProductImage {
+  +id: Long
+  +product: Product
+  +imageUrl: String
+}
+
+class Subcategory {
+  +id: Long
+  +name: String
+  +description: String
+  +iconUrl: String
+  +category: Category
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class Coupon {
+  +id: Long
+  +code: String
+  +discountType: DiscountType
+  +discountValue: BigDecimal
+  +minOrderValue: BigDecimal
+  +maxDiscountAmount: BigDecimal
+  +startDate: LocalDateTime
+  +endDate: LocalDateTime
+  +usageLimit: Integer
+}
+
+class Notification {
+  +id: Long
+  +type: NotificationType
+  +targetType: TargetType
+  +title: String
+  +message: String
+  +link: String
+  +recipient: User
+  +order: StoreOrder
+  +refundRequest: RefundRequest
+  +createdAt: LocalDateTime
+  +readAt: LocalDateTime
+}
+
+class OrderDetail {
+  +id: Long
+  +order: StoreOrder
+  +product: Product
+  +productName: String
+  +productImage: String
+  +quantity: Integer
+  +unitPrice: BigDecimal
+  +totalPrice: BigDecimal
+}
+
+class StoreOrder {
+  +id: Long
+  +user: User
+  +guestName: String
+  +guestPhone: String
+  +guestEmail: String
+  +shippingAddress: String
+  +orderDate: LocalDateTime
+  +paymentMethod: PaymentMethod
+  +paymentExpiredAt: LocalDateTime
+  +coupon: Coupon
+  +subtotalAmount: BigDecimal
+  +totalAmount: BigDecimal
+}
+
+class Promotion {
+  +id: Long
+  +name: String
+  +description: String
+  +discountType: DiscountType
+  +discountValue: BigDecimal
+  +startDate: LocalDateTime
+  +endDate: LocalDateTime
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class PromotionBrand {
+  +id: Long
+  +promotion: Promotion
+  +brand: Brand
+}
+
+class PromotionCategory {
+  +id: Long
+  +promotion: Promotion
+  +category: Category
+}
+
+class PromotionProduct {
+  +id: Long
+  +promotion: Promotion
+  +product: Product
+  +saleStockLimit: Integer
+}
+
+class RefundRequest {
+  +id: Long
+  +order: StoreOrder
+  +user: User
+  +reason: String
+  +adminNote: String
+  +processedBy: User
+  +processedAt: LocalDateTime
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class ProductReview {
+  +id: Long
+  +product: Product
+  +user: User
+  +rating: Integer
+  +content: String
+  +adminReply: String
+  +repliedAt: LocalDateTime
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+class ReviewSettings {
+}
+
+class ShippingSettings {
+}
+
+class User {
+  +id: Long
+  +email: String
+  +password: String
+  +providerId: String
+  +fullName: String
+  +phoneNumber: String
+  +address: String
+  +createdAt: LocalDateTime
+  +updatedAt: LocalDateTime
+}
+
+' ====== MỐI QUAN HỆ CƠ BẢN ======
+Brand "1" <-- "0..*" PromotionBrand
+User "1" <-- "0..*" Cart
+User "1" <-- "0..*" EmailVerificationToken
+StoreOrder "1" <-- "0..*" RefundRequest
+StoreOrder "1" <-- "0..*" OrderDetail
+Category "1" <-- "0..*" Product
+Product "1" <-- "0..*" ProductAttribute
+Product "1" <-- "0..*" CartItem
+User "1" <-- "0..*" RefundRequest
+User "1" <-- "0..*" PasswordResetToken
+User "1" <-- "0..*" Notification
+User "1" <-- "0..*" StoreOrder
+Product "1" <-- "0..*" PromotionProduct
+Product "1" <-- "0..*" ProductImage
+StoreOrder "1" <-- "0..*" Notification
+Category "1" <-- "0..*" Subcategory
+Product "1" <-- "0..*" ProductReview
+Cart "1" <-- "0..*" CartItem
+Subcategory "1" <-- "0..*" Product
+Brand "1" <-- "0..*" Product
+Category "1" <-- "0..*" PromotionCategory
+Coupon "1" <-- "0..*" StoreOrder
+Product "1" <-- "0..*" OrderDetail
+User "1" <-- "0..*" ProductReview
+@enduml
