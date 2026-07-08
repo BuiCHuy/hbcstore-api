@@ -405,7 +405,7 @@ public class OrderService {
     }
 
     private ResolvedOrderItem resolveOrderItem(CreateOrderItemRequest item) {
-        Product product = productRepository.findById(item.productId())
+        Product product = productRepository.findByIdForUpdate(item.productId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm"));
         if (product.getStatus() == Product.ProductStatus.INACTIVE) {
             throw new IllegalArgumentException("Sản phẩm hiện đang bị ẩn");
