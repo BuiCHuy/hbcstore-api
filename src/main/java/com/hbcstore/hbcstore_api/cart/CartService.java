@@ -5,8 +5,10 @@ import com.hbcstore.hbcstore_api.cart.dto.CartItemResponse;
 import com.hbcstore.hbcstore_api.cart.dto.CartResponse;
 import com.hbcstore.hbcstore_api.catalog.Product;
 import com.hbcstore.hbcstore_api.catalog.ProductRepository;
+import com.hbcstore.hbcstore_api.pricing.PricingService;
 import com.hbcstore.hbcstore_api.user.User;
 import com.hbcstore.hbcstore_api.user.UserRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,17 +19,20 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final PricingService pricingService;
 
     public CartService(
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
             UserRepository userRepository,
-            ProductRepository productRepository
+            ProductRepository productRepository,
+            PricingService pricingService
     ) {
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.userRepository = userRepository;
         this.productRepository = productRepository;
+        this.pricingService = pricingService;
     }
 
     @Transactional(readOnly = true)
@@ -89,16 +94,22 @@ public class CartService {
     }
 
     private CartResponse toResponse(Cart cart) {
-        List<CartItemResponse> items = cartItemRepository.findAllByCart(cart).stream().map(item -> new CartItemResponse(
-                item.getId(),
-                item.getProduct().getId(),
-                item.getProduct().getName(),
-                item.getProduct().getThumbnailUrl(),
-                item.getProduct().getBrand() != null ? item.getProduct().getBrand().getName() : "",
-                item.getProduct().getCategory() != null ? item.getProduct().getCategory().getName() : "",
-                item.getUnitPriceSnapshot(),
-                item.getQuantity()
-        )).toList();
+        List<CartItemResponse> items = cartItemRepository.findAllByCart(cart).stream().map(item -> {
+            BigDecimal currentPrice = pricingService.resolveProductPrice(item.getProduct(), item.getQuantity()).unitPrice();
+            if (currentPrice == null) {
+                currentPrice = item.getProduct().getPrice();
+            }
+            return new CartItemResponse(
+                    item.getId(),
+                    item.getProduct().getId(),
+                    item.getProduct().getName(),
+                    item.getProduct().getThumbnailUrl(),
+                    item.getProduct().getBrand() != null ? item.getProduct().getBrand().getName() : "",
+                    item.getProduct().getCategory() != null ? item.getProduct().getCategory().getName() : "",
+                    currentPrice,
+                    item.getQuantity()
+            );
+        }).toList();
         return new CartResponse(cart.getId(), cart.getUser().getId(), items);
     }
 }
