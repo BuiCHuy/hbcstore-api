@@ -223,6 +223,16 @@ public class OrderService {
         return toResponse(saved);
     }
 
+    public void autoCancelExpiredOrder(StoreOrder order) {
+        if (order.getStatus() != StoreOrder.OrderStatus.PENDING) {
+            return;
+        }
+        rollbackConsumptionOnCancel(order);
+        order.setStatus(StoreOrder.OrderStatus.CANCELLED);
+        StoreOrder saved = orderRepository.save(order);
+        notificationService.createOrderStatusUpdatedNotification(saved);
+    }
+
     private void rollbackConsumptionOnCancel(StoreOrder order) {
         rollbackCouponUsage(order.getCoupon());
         rollbackPromotionSoldCount(order);
@@ -282,8 +292,8 @@ public class OrderService {
 
         EnumSet<StoreOrder.OrderStatus> allowedNextStatuses = switch (current) {
             case PENDING -> EnumSet.of(StoreOrder.OrderStatus.CONFIRMED, StoreOrder.OrderStatus.CANCELLED);
-            case CONFIRMED -> EnumSet.of(StoreOrder.OrderStatus.SHIPPING);
-            case SHIPPING -> EnumSet.of(StoreOrder.OrderStatus.DELIVERED);
+            case CONFIRMED -> EnumSet.of(StoreOrder.OrderStatus.SHIPPING, StoreOrder.OrderStatus.CANCELLED);
+            case SHIPPING -> EnumSet.of(StoreOrder.OrderStatus.DELIVERED, StoreOrder.OrderStatus.CANCELLED);
             case DELIVERED, CANCELLED -> EnumSet.noneOf(StoreOrder.OrderStatus.class);
         };
 

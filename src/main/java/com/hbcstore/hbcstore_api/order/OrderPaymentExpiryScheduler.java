@@ -6,16 +6,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OrderPaymentExpiryScheduler {
     private final StoreOrderRepository orderRepository;
+    private final OrderService orderService; // Inject OrderService
 
     @Scheduled(fixedDelay = 60000)
-    @Transactional
     public void cancelExpiredBankTransferOrders() {
         LocalDateTime now = LocalDateTime.now();
         List<StoreOrder> expiredOrders =
@@ -31,9 +30,8 @@ public class OrderPaymentExpiryScheduler {
         }
 
         for (StoreOrder order : expiredOrders) {
-            order.setStatus(StoreOrder.OrderStatus.CANCELLED);
+            orderService.autoCancelExpiredOrder(order); // Call the new method to rollback stock safely
         }
-        orderRepository.saveAll(expiredOrders);
         log.info("Auto-cancelled {} expired unpaid bank-transfer orders", expiredOrders.size());
     }
 }
