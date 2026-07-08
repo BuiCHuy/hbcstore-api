@@ -108,12 +108,19 @@ public class OrderService {
             validateAndConsumeCoupon(quote.coupon());
             order.setCoupon(quote.coupon());
         }
-        order.setPaymentStatus(StoreOrder.PaymentStatus.UNPAID);
-        order.setStatus(StoreOrder.OrderStatus.PENDING);
-        if (request.paymentMethod() == StoreOrder.PaymentMethod.BANK_TRANSFER) {
-            order.setPaymentExpiredAt(LocalDateTime.now().plusMinutes(BANK_TRANSFER_PAYMENT_EXPIRE_MINUTES));
-        } else {
+        if (quote.totalAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            order.setPaymentMethod(StoreOrder.PaymentMethod.COD);
+            order.setPaymentStatus(StoreOrder.PaymentStatus.PAID);
             order.setPaymentExpiredAt(null);
+            order.setStatus(StoreOrder.OrderStatus.CONFIRMED);
+        } else {
+            order.setPaymentStatus(StoreOrder.PaymentStatus.UNPAID);
+            order.setStatus(StoreOrder.OrderStatus.PENDING);
+            if (request.paymentMethod() == StoreOrder.PaymentMethod.BANK_TRANSFER) {
+                order.setPaymentExpiredAt(LocalDateTime.now().plusMinutes(BANK_TRANSFER_PAYMENT_EXPIRE_MINUTES));
+            } else {
+                order.setPaymentExpiredAt(null);
+            }
         }
         order.setDiscountAmount(quote.discountAmount());
         order.setShippingFee(quote.shippingFee());
@@ -308,9 +315,13 @@ public class OrderService {
     }
 
     private void saveOrderDetail(StoreOrder order, ResolvedOrderItem item) {
-        Product product = item.product();
+        Product product = productRepository.findByIdForUpdate(item.product().getId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm"));
         
         int currentStock = product.getStockQuantity() == null ? 0 : product.getStockQuantity();
+        if (currentStock < item.quantity()) {
+            throw new IllegalArgumentException("Sản phẩm không đủ tồn kho lúc thanh toán: " + product.getName());
+        }
         product.setStockQuantity(currentStock - item.quantity());
         productRepository.save(product);
 
@@ -405,7 +416,7 @@ public class OrderService {
     }
 
     private ResolvedOrderItem resolveOrderItem(CreateOrderItemRequest item) {
-        Product product = productRepository.findByIdForUpdate(item.productId())
+        Product product = productRepository.findById(item.productId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm"));
         if (product.getStatus() == Product.ProductStatus.INACTIVE) {
             throw new IllegalArgumentException("Sản phẩm hiện đang bị ẩn");
