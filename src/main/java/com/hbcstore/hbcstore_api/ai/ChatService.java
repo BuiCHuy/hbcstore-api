@@ -421,10 +421,15 @@ public class ChatService {
     private int scoreProduct(ProductResponse product, Set<String> queryTokens, SearchIntent intent) {
         int score = 0;
         String haystack = buildProductHaystack(product);
+        String normalizedName = normalize(product.name() == null ? "" : product.name());
 
         for (String token : queryTokens) {
-            if (token.length() >= 2 && haystack.contains(token)) {
-                score += 3;
+            if (token.length() >= 2) {
+                if (normalizedName.contains(token)) {
+                    score += 15;
+                } else if (haystack.contains(token)) {
+                    score += 3;
+                }
             }
         }
         if (intent.theme() != null && matchesTheme(product, intent.theme())) {
